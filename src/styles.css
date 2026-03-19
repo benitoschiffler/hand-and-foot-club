@@ -268,6 +268,30 @@ input {
   flex-shrink: 0;
 }
 
+.seat-you-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.seat-you-info .seat-name {
+  margin-right: 2px;
+}
+
+.seat-you-info .seat-stack,
+.seat-you-info .seat-state {
+  font-size: 0.8rem;
+}
+
+.hand-selected {
+  font-size: 0.78rem;
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .seat-name {
   font-size: 1rem;
   font-weight: 700;
@@ -287,11 +311,10 @@ input {
   border: 1px solid rgba(234, 177, 93, 0.3);
 }
 
-.center-lane {
-  display: grid;
-  grid-template-columns: 1fr minmax(0, 380px);
-  gap: 14px;
-  align-items: start;
+.center-row {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
   margin-top: 6px;
   flex-shrink: 0;
 }
@@ -352,11 +375,34 @@ input {
   letter-spacing: 0.08em;
 }
 
-.table-side {
+.your-melds-row {
   display: flex;
-  flex-direction: row;
   flex-wrap: wrap;
   gap: 8px;
+  align-items: flex-start;
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: rgba(4, 11, 13, 0.28);
+  border: 1px solid rgba(247, 240, 221, 0.08);
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+
+.your-melds-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(247, 240, 221, 0.45);
+  align-self: center;
+  white-space: nowrap;
+  margin-right: 4px;
+}
+
+.your-melds-row .table-meld-stack {
+  width: auto;
+  flex-shrink: 0;
 }
 
 .table-meld-strip {
@@ -631,6 +677,7 @@ input {
   gap: 10px 0;
   justify-content: center;
   margin-top: 8px;
+  padding-top: 14px;
   align-content: start;
   overflow-y: auto;
 }
@@ -791,13 +838,6 @@ input {
     align-items: flex-start;
   }
 
-  .center-lane {
-    grid-template-columns: 1fr;
-  }
-
-  .table-side {
-    flex-direction: row;
-  }
 }
 
 @media (max-width: 780px) {
@@ -824,11 +864,7 @@ input {
     grid-template-columns: 1fr;
   }
 
-  .deck-cluster {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .choice-grid {
+.choice-grid {
     grid-template-columns: 1fr;
   }
 

@@ -316,7 +316,9 @@ function App() {
               <div className="table-meta">
                 <span className="pill">Turn: {currentPlayer.name}</span>
                 <span className="pill">Deck: {state.stock.length}</span>
-                <span className="pill">Discard: {state.discard[0] ? cardLabel(state.discard[0]) : "none"}</span>
+                {state.players.map((player) => (
+                  <span key={player.id} className="pill">{player.id === viewer.id ? "You" : player.name}: {player.score || 0} pts</span>
+                ))}
               </div>
             </div>
 
@@ -340,7 +342,7 @@ function App() {
               ))}
             </div>
 
-            <div className="center-lane">
+            <div className="center-row">
               <div className="deck-cluster">
                 <div className="deck-card-back">
                   <span className="deck-back-count">{state.stock.length}</span>
@@ -362,57 +364,6 @@ function App() {
                   <div className="discard-empty-card">Discard</div>
                 )}
               </div>
-
-              <aside className="table-side">
-                <div className="panel side-panel">
-                  <h3>Your melds</h3>
-                  {viewer.melds.map((meld: Meld) => (
-                    <MeldStack
-                      key={meld.id}
-                      meld={meld}
-                      selectable
-                      selected={selectedMeld === meld.id}
-                      droppable={!!dragId && canAct}
-                      onSelect={() => setSelectedMeld(meld.id)}
-                      onDrop={canAct ? (e) => {
-                        e.preventDefault();
-                        if (dragId) {
-                          update(addToMeld(state, viewer.id, meld.id, [dragId]));
-                          setDragId(null);
-                        }
-                      } : undefined}
-                    />
-                  ))}
-                  {!viewer.melds.length ? <p className="muted">No melds yet.</p> : null}
-                </div>
-
-                <div className="panel side-panel compact">
-                  <h3>Your foot</h3>
-                  <div className="foot-card">{viewer.footRevealed ? `${viewer.foot.length} cards` : "Facedown"}</div>
-                  <p className="muted">{selectedCards().map(cardLabel).join(", ") || "Nothing selected"}</p>
-                </div>
-
-                <div className="panel side-panel compact">
-                  <h3>Scoreboard</h3>
-                  <div className="score-list">
-                    {state.players.map((player) => (
-                      <div key={player.id} className="score-row">
-                        <span>{player.id === viewer.id ? "You" : player.name}</span>
-                        <span>{player.score || 0}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </aside>
-            </div>
-
-            <div className={`seat seat-you ${viewer.id === currentPlayer.id ? "active" : ""}`}>
-              <div>
-                <div className="seat-name">You</div>
-                <div className="seat-stack">{activeHandLabel}: {visibleCards.length} cards</div>
-                <div className="seat-state">{viewer.hasGoneDown ? "Down" : "Not down"}</div>
-              </div>
-              <div className="status-ribbon">{state.lastAction}</div>
             </div>
 
             {!viewer.chosenHand && viewer.handChoice ? (
@@ -433,11 +384,46 @@ function App() {
               </div>
             ) : (
               <>
+                {viewer.melds.length > 0 && (
+                  <div className="your-melds-row">
+                    <span className="your-melds-label">Your melds</span>
+                    {viewer.melds.map((meld: Meld) => (
+                      <MeldStack
+                        key={meld.id}
+                        meld={meld}
+                        selectable
+                        selected={selectedMeld === meld.id}
+                        droppable={!!dragId && canAct}
+                        onSelect={() => setSelectedMeld(meld.id)}
+                        onDrop={canAct ? (e) => {
+                          e.preventDefault();
+                          if (dragId) {
+                            update(addToMeld(state, viewer.id, meld.id, [dragId]));
+                            setDragId(null);
+                          }
+                        } : undefined}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                <div className={`seat seat-you ${viewer.id === currentPlayer.id ? "active" : ""}`}>
+                  <div className="seat-you-info">
+                    <div className="seat-name">You</div>
+                    <div className="seat-stack">{activeHandLabel}: {visibleCards.length} cards</div>
+                    {viewer.foot.length > 0 && (
+                      <div className="seat-stack">Foot: {viewer.foot.length} cards{!viewer.footRevealed ? " (facedown)" : ""}</div>
+                    )}
+                    <div className="seat-state">{viewer.hasGoneDown ? "Down" : "Not down"}</div>
+                  </div>
+                  <div className="status-ribbon">{state.lastAction}</div>
+                </div>
+
                 <div className="table-controls">
                   {!canAct ? <p className="muted turn-note">Waiting for {currentPlayer.name}.</p> : null}
-                  {mustDiscard ? <p className="turn-note discard-note">Choose one card to discard and end your turn.</p> : null}
+                  {mustDiscard ? <p className="turn-note discard-note">Discard one to end turn.</p> : null}
                   {canAct && state.turn.drawn && !viewer.hasGoneDown && state.turn.playedThisTurn.length > 0 && turnMeldPoints < 90 ? (
-                    <p className="turn-note go-down-progress">{turnMeldPoints}/90 pts — keep melding to go down.</p>
+                    <p className="turn-note go-down-progress">{turnMeldPoints}/90 pts to go down</p>
                   ) : null}
                   <div className="button-row">
                     <button onClick={() => canAct && update(drawFromStock(state))} disabled={!canAct || state.turn.drawn}>
@@ -458,7 +444,7 @@ function App() {
                 <section className="hand-area">
                   <div className="hand-header">
                     <h3>{activeHandLabel}</h3>
-                    <p className="muted">Select cards to meld, then discard one to end the turn.</p>
+                    <span className="muted hand-selected">{selectedCards().map(cardLabel).join(", ") || ""}</span>
                   </div>
                   <div className="cards hand-cards">
                     {orderedVisibleCards.map((card) => (

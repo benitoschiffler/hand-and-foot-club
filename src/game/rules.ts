@@ -112,10 +112,6 @@ export function canCreateMeld(cards: Card[]) {
   if (!type) {
     return { ok: false, reason: "Meld must be a set or same-suit run with at least 3 cards." };
   }
-  const wilds = cards.filter(isWild).length;
-  if (wilds > 1) {
-    return { ok: false, reason: "Only one wild can be used when creating a new meld." };
-  }
   if (cards.filter(isNaturalForMeld).length < 2) {
     return { ok: false, reason: "A new meld needs at least two natural cards." };
   }
