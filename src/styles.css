@@ -574,18 +574,37 @@ input {
 }
 
 .hand-cards {
-  grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
+  /* 5-column fixed-width grid, centered, with card overlap */
+  display: grid;
+  grid-template-columns: repeat(5, 86px);
+  gap: 10px 0;
+  justify-content: center;
   margin-top: 8px;
-  flex: 1;
   align-content: start;
   overflow-y: auto;
+}
+
+/* Overlap cards after the first in each row */
+.hand-cards .card {
+  margin-left: -22px;
+  z-index: 1;
+}
+.hand-cards .card:nth-child(5n + 1) {
+  margin-left: 0;
+}
+.hand-cards .card:hover {
+  z-index: 20;
+}
+.hand-cards .card.selected {
+  z-index: 15;
 }
 
 .card {
   display: flex;
   flex-direction: column;
   position: relative;
-  min-height: 110px;
+  width: 86px;
+  min-height: 120px;
   padding: 5px 6px 20px;
   border-radius: 10px;
   border: 1.5px solid #c8c0b0;
@@ -656,16 +675,16 @@ input {
   letter-spacing: 0.05em;
 }
 
-.card.selected,
 .choice:hover,
 .button-row button:hover,
 .auth button:hover {
   transform: translateY(-2px);
-  border-color: #eab15d;
 }
 
 .card.selected {
-  box-shadow: 0 0 0 2px rgba(234, 177, 93, 0.5), 0 5px 14px rgba(0, 0, 0, 0.2);
+  transform: translateY(-10px);
+  border-color: #eab15d;
+  box-shadow: 0 0 0 2px rgba(234, 177, 93, 0.5), 0 8px 20px rgba(0, 0, 0, 0.25);
 }
 
 .card.discard-ready {
