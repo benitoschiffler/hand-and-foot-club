@@ -19,26 +19,36 @@ function randomRoomCode() {
   return Array.from({ length: 6 }, () => ROOM_ALPHABET[Math.floor(Math.random() * ROOM_ALPHABET.length)]).join("");
 }
 
-function HandCard({ card, selected, mustDiscard, onToggle, onDiscard }: {
+function HandCard({ card, selected, mustDiscard, discarding, onToggle, onDiscard, onDragStart, onDragOver, onDrop }: {
   card: Card;
   selected: boolean;
   mustDiscard: boolean;
+  discarding: boolean;
   onToggle: () => void;
   onDiscard: () => void;
+  onDragStart: (e: React.DragEvent) => void;
+  onDragOver: (e: React.DragEvent) => void;
+  onDrop: (e: React.DragEvent) => void;
 }) {
+  const rank = card.rank === "JOKER" ? "Jkr" : card.rank;
+  const suit = SUIT_SYMBOL[card.suit];
   return (
     <button
-      className={`card ${card.suit} ${selected ? "selected" : ""} ${mustDiscard ? "discard-ready" : ""}`}
+      className={`card ${card.suit} ${selected ? "selected" : ""} ${mustDiscard ? "discard-ready" : ""} ${discarding ? "discarding" : ""}`}
       onClick={onToggle}
+      draggable
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
     >
       <div className="card-corner">
-        <span className="card-rank">{card.rank === "JOKER" ? "Jkr" : card.rank}</span>
-        <span className="card-suit-sym">{SUIT_SYMBOL[card.suit]}</span>
+        <span className="card-rank">{rank}</span>
+        <span className="card-suit-sym">{suit}</span>
       </div>
-      <span className="card-pip">{SUIT_SYMBOL[card.suit]}</span>
+      <span className="card-pip">{suit}</span>
       <div className="card-corner card-corner-br">
-        <span className="card-rank">{card.rank === "JOKER" ? "Jkr" : card.rank}</span>
-        <span className="card-suit-sym">{SUIT_SYMBOL[card.suit]}</span>
+        <span className="card-rank">{rank}</span>
+        <span className="card-suit-sym">{suit}</span>
       </div>
       <em
         className="card-discard"
@@ -53,7 +63,7 @@ function HandCard({ card, selected, mustDiscard, onToggle, onDiscard }: {
   );
 }
 
-function MeldStack({ meld, selectable, selected, onSelect }: { meld: Meld; selectable?: boolean; selected?: boolean; onSelect?: () => void }) {
+function MeldStack({ meld, selectable, selected, droppable, onSelect, onDrop }: { meld: Meld; selectable?: boolean; selected?: boolean; droppable?: boolean; onSelect?: () => void; onDrop?: (e: React.DragEvent) => void }) {
   const body = (
     <>
       <div className="meld-stack-head">
@@ -88,7 +98,12 @@ function MeldStack({ meld, selectable, selected, onSelect }: { meld: Meld; selec
   }
 
   return (
-    <button className={`table-meld-stack selectable ${selected ? "selected" : ""}`} onClick={onSelect}>
+    <button
+      className={`table-meld-stack selectable ${selected ? "selected" : ""} ${droppable ? "droppable" : ""}`}
+      onClick={onSelect}
+      onDragOver={onDrop ? (e) => e.preventDefault() : undefined}
+      onDrop={onDrop}
+    >
       {body}
     </button>
   );
@@ -107,6 +122,9 @@ function App() {
   const [joinCode, setJoinCode] = useState("");
   const [message, setMessage] = useState("Use your house rules as the source of truth.");
   const [history, setHistory] = useState<Array<{ id: string; created_at: string; scores: Array<{ id: string; name: string; score: number }> }>>([]);
+  const [handOrder, setHandOrder] = useState<string[]>([]);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [discardingId, setDiscardingId] = useState<string | null>(null);
 
   useEffect(() => {
     void getSessionUser().then((user) => {
@@ -172,6 +190,21 @@ function App() {
     }
     return viewer.hand.length ? viewer.hand : viewer.foot;
   }, [viewer]);
+
+  // Keep hand display order in sync with game state, preserving user-sorted positions
+  useEffect(() => {
+    const ids = visibleCards.map((c) => c.id);
+    setHandOrder((prev) => {
+      const kept = prev.filter((id) => ids.includes(id));
+      const added = ids.filter((id) => !prev.includes(id));
+      return [...kept, ...added];
+    });
+  }, [visibleCards]);
+
+  const orderedVisibleCards = useMemo(
+    () => handOrder.map((id) => visibleCards.find((c) => c.id === id)).filter((c): c is Card => c !== undefined),
+    [handOrder, visibleCards],
+  );
 
   function startCpuGame(cpuDifficulty: Difficulty) {
     setSelected([]);
@@ -249,7 +282,13 @@ function App() {
     if (!state || !viewer) {
       return;
     }
-    update(discardCard(state, viewer.id, cardId));
+    const s = state;
+    const vid = viewer.id;
+    setDiscardingId(cardId);
+    setTimeout(() => {
+      update(discardCard(s, vid, cardId));
+      setDiscardingId(null);
+    }, 260);
   }
 
   async function onEmailSignIn() {
@@ -274,7 +313,7 @@ function App() {
               </div>
               <div className="table-meta">
                 <span className="pill">Turn: {currentPlayer.name}</span>
-                <span className="pill">Stock: {state.stock.length}</span>
+                <span className="pill">Deck: {state.stock.length}</span>
                 <span className="pill">Discard: {state.discard[0] ? cardLabel(state.discard[0]) : "none"}</span>
               </div>
             </div>
@@ -302,7 +341,7 @@ function App() {
             <div className="center-lane">
               <div className="deck-cluster">
                 <div className="deck-well">
-                  <strong>Stock</strong>
+                  <strong>Deck</strong>
                   <span>{state.stock.length} cards</span>
                 </div>
                 <div className="deck-well discard-well">
@@ -320,7 +359,15 @@ function App() {
                       meld={meld}
                       selectable
                       selected={selectedMeld === meld.id}
+                      droppable={!!dragId && canAct}
                       onSelect={() => setSelectedMeld(meld.id)}
+                      onDrop={canAct ? (e) => {
+                        e.preventDefault();
+                        if (dragId) {
+                          update(addToMeld(state, viewer.id, meld.id, [dragId]));
+                          setDragId(null);
+                        }
+                      } : undefined}
                     />
                   ))}
                   {!viewer.melds.length ? <p className="muted">No melds yet.</p> : null}
@@ -398,18 +445,38 @@ function App() {
                     <p className="muted">Select cards to meld, then discard one to end the turn.</p>
                   </div>
                   <div className="cards hand-cards">
-                    {visibleCards.map((card) => (
+                    {orderedVisibleCards.map((card) => (
                       <HandCard
                         key={card.id}
                         card={card}
                         selected={selected.includes(card.id)}
                         mustDiscard={mustDiscard}
+                        discarding={discardingId === card.id}
                         onToggle={() =>
                           setSelected((current) =>
                             current.includes(card.id) ? current.filter((id) => id !== card.id) : [...current, card.id],
                           )
                         }
                         onDiscard={() => onDiscard(card.id)}
+                        onDragStart={(e) => {
+                          e.dataTransfer.effectAllowed = "move";
+                          setDragId(card.id);
+                        }}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (!dragId || dragId === card.id) return;
+                          setHandOrder((prev) => {
+                            const from = prev.indexOf(dragId);
+                            const to = prev.indexOf(card.id);
+                            if (from === -1 || to === -1) return prev;
+                            const next = [...prev];
+                            next.splice(from, 1);
+                            next.splice(to, 0, dragId);
+                            return next;
+                          });
+                          setDragId(null);
+                        }}
                       />
                     ))}
                   </div>

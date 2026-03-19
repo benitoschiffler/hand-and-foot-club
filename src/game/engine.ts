@@ -401,17 +401,27 @@ export function runCpuTurn(state: GameState) {
     draft = drawFromStock(draft);
   }
 
-  // Try to create new melds
+  // Only create new melds if already down, or if meld points this turn can reach 90
   const active = activeCards(draft.players[draft.currentPlayer]);
-  const sets = rankBucket(active).filter((bucket) => bucket.length >= 3);
-  const candidateSet = sets.find((bucket) => canCreateMeld(bucket.slice(0, 3)).ok);
-  if (candidateSet) {
-    draft = createMeld(draft, player.id, candidateSet.slice(0, Math.min(candidateSet.length, 4)).map((card) => card.id));
-  } else {
-    const runs = suitRuns(active);
-    const run = runs.find((bucket) => canCreateMeld(bucket.slice(0, 3)).ok);
-    if (run) {
-      draft = createMeld(draft, player.id, run.slice(0, 3).map((card) => card.id));
+  const alreadyDown = draft.players[draft.currentPlayer].hasGoneDown;
+  const availableMeldPoints = rankBucket(active)
+    .filter((b) => b.length >= 3 && canCreateMeld(b.slice(0, 3)).ok)
+    .reduce((sum, b) => sum + b.slice(0, 3).reduce((s, c) => s + cardPoints(c), 0), 0) +
+    suitRuns(active)
+      .filter((r) => r.length >= 3 && canCreateMeld(r.slice(0, 3)).ok)
+      .reduce((sum, r) => sum + r.slice(0, 3).reduce((s, c) => s + cardPoints(c), 0), 0);
+
+  if (alreadyDown || availableMeldPoints >= 90) {
+    const sets = rankBucket(active).filter((bucket) => bucket.length >= 3);
+    const candidateSet = sets.find((bucket) => canCreateMeld(bucket.slice(0, 3)).ok);
+    if (candidateSet) {
+      draft = createMeld(draft, player.id, candidateSet.slice(0, Math.min(candidateSet.length, 4)).map((card) => card.id));
+    } else {
+      const runs = suitRuns(active);
+      const run = runs.find((bucket) => canCreateMeld(bucket.slice(0, 3)).ok);
+      if (run) {
+        draft = createMeld(draft, player.id, run.slice(0, 3).map((card) => card.id));
+      }
     }
   }
 
