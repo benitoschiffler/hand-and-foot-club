@@ -9,7 +9,7 @@ import {
   pickUpDiscard,
   runCpuTurn,
 } from "./game/engine";
-import { cardLabel, SUIT_SYMBOL } from "./game/rules";
+import { cardLabel, cardPoints, SUIT_SYMBOL } from "./game/rules";
 import { createRoom, fetchFinishedGames, fetchRoomByCode, getSessionUser, joinRoom, recordFinishedGame, signIn, subscribeToRoom, supabase, updateRoomState } from "./lib/supabase";
 import type { Card, Difficulty, GameState, Meld } from "./types";
 
@@ -299,7 +299,9 @@ function App() {
   const canAct = Boolean(state && currentPlayer && viewer && currentPlayer.id === viewer.id && !viewer.isCpu && !state.winnerId);
   const activeHandLabel = viewer?.hand.length ? "Hand" : "Foot";
   const opponents = state ? state.players.filter((player) => player.id !== viewer?.id) : [];
-  const mustDiscard = Boolean(canAct && state?.turn.drawn && viewer?.chosenHand);
+  const turnMeldPoints = state?.turn.playedThisTurn.reduce((sum, card) => sum + cardPoints(card), 0) ?? 0;
+  const canDiscard = !state?.turn.playedThisTurn.length || viewer?.hasGoneDown || turnMeldPoints >= 90;
+  const mustDiscard = Boolean(canAct && state?.turn.drawn && viewer?.chosenHand && canDiscard);
 
   if (state && currentPlayer && viewer) {
     return (
@@ -340,14 +342,25 @@ function App() {
 
             <div className="center-lane">
               <div className="deck-cluster">
-                <div className="deck-well">
-                  <strong>Deck</strong>
-                  <span>{state.stock.length} cards</span>
+                <div className="deck-card-back">
+                  <span className="deck-back-count">{state.stock.length}</span>
+                  <span className="deck-back-label">Deck</span>
                 </div>
-                <div className="deck-well discard-well">
-                  <strong>Discard</strong>
-                  <span>{state.discard[0] ? cardLabel(state.discard[0]) : "Empty"}</span>
-                </div>
+                {state.discard[0] ? (
+                  <div className={`card discard-top ${state.discard[0].suit}`}>
+                    <div className="card-corner">
+                      <span className="card-rank">{state.discard[0].rank === "JOKER" ? "Jkr" : state.discard[0].rank}</span>
+                      <span className="card-suit-sym">{SUIT_SYMBOL[state.discard[0].suit]}</span>
+                    </div>
+                    <span className="card-pip">{SUIT_SYMBOL[state.discard[0].suit]}</span>
+                    <div className="card-corner card-corner-br">
+                      <span className="card-rank">{state.discard[0].rank === "JOKER" ? "Jkr" : state.discard[0].rank}</span>
+                      <span className="card-suit-sym">{SUIT_SYMBOL[state.discard[0].suit]}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="discard-empty-card">Discard</div>
+                )}
               </div>
 
               <aside className="table-side">
@@ -423,6 +436,9 @@ function App() {
                 <div className="table-controls">
                   {!canAct ? <p className="muted turn-note">Waiting for {currentPlayer.name}.</p> : null}
                   {mustDiscard ? <p className="turn-note discard-note">Choose one card to discard and end your turn.</p> : null}
+                  {canAct && state.turn.drawn && !viewer.hasGoneDown && state.turn.playedThisTurn.length > 0 && turnMeldPoints < 90 ? (
+                    <p className="turn-note go-down-progress">{turnMeldPoints}/90 pts — keep melding to go down.</p>
+                  ) : null}
                   <div className="button-row">
                     <button onClick={() => canAct && update(drawFromStock(state))} disabled={!canAct || state.turn.drawn}>
                       Draw 2
