@@ -102,7 +102,7 @@ h1 {
 .choice,
 .meld,
 .cards .card {
-  transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+  transition: transform 120ms ease, background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
 }
 
 .button-row button,
@@ -357,26 +357,60 @@ input {
 .mini-card {
   position: absolute;
   top: 0;
-  width: 60px;
-  height: 86px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(231, 226, 214, 0.95));
-  color: #172124;
-  padding: 8px 7px;
+  width: 54px;
+  height: 78px;
+  border-radius: 8px;
+  border: 1.5px solid #c8c0b0;
+  background: #fffef9;
+  color: #1a1a1a;
+  padding: 4px 5px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.22);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
 .mini-card.hearts,
 .mini-card.diamonds {
-  color: #a63232;
+  color: #c0201a;
 }
 
 .mini-card.joker {
+  background: linear-gradient(135deg, #fffef9 0%, #fef6e0 100%);
   color: #8a5b15;
+}
+
+.mini-corner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.1;
+}
+
+.mini-corner-br {
+  transform: rotate(180deg);
+}
+
+.mini-rank {
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.mini-suit-sym {
+  font-size: 0.5rem;
+  line-height: 1;
+}
+
+.mini-pip {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 1.4rem;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
 }
 
 .side-panel {
@@ -498,14 +532,76 @@ input {
 .card {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  justify-content: space-between;
-  min-height: 136px;
-  padding: 12px;
-  border-radius: 16px;
-  border: 1px solid rgba(247, 240, 221, 0.16);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.03));
-  color: #fff7ea;
+  position: relative;
+  min-height: 130px;
+  padding: 6px 7px 22px;
+  border-radius: 10px;
+  border: 1.5px solid #c8c0b0;
+  background: #fffef9;
+  color: #1a1a1a;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.28), 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.card.hearts,
+.card.diamonds {
+  color: #c0201a;
+}
+
+.card.joker {
+  background: linear-gradient(135deg, #fffef9 0%, #fef6e0 100%);
+  color: #8a5b15;
+}
+
+.card-corner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.1;
+}
+
+.card-corner-br {
+  transform: rotate(180deg);
+  margin-top: auto;
+}
+
+.card-rank {
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.card-suit-sym {
+  font-size: 0.65rem;
+}
+
+.card-pip {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -60%);
+  font-size: 2rem;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+}
+
+.card-discard {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  font-style: normal;
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-align: center;
+  padding: 3px 0;
+  background: rgba(0, 0, 0, 0.06);
+  border-bottom-left-radius: 9px;
+  border-bottom-right-radius: 9px;
+  color: #666;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .card.selected,
@@ -516,37 +612,31 @@ input {
   border-color: #eab15d;
 }
 
-.card.discard-ready {
-  box-shadow:
-    0 0 0 1px rgba(234, 177, 93, 0.24),
-    0 0 18px rgba(234, 177, 93, 0.14);
+.card.selected {
+  box-shadow: 0 0 0 2px rgba(234, 177, 93, 0.5), 0 5px 14px rgba(0, 0, 0, 0.2);
 }
 
-.card.discard-ready em {
-  color: #ffd789;
+.card.discard-ready {
+  box-shadow:
+    0 0 0 1.5px rgba(234, 177, 93, 0.5),
+    0 0 14px rgba(234, 177, 93, 0.18);
+}
+
+.card.discard-ready .card-discard {
+  color: #c0201a;
   font-weight: 700;
+  background: rgba(192, 32, 26, 0.07);
 }
 
 .card.discard-ready:not(.selected) {
   animation: discardPulse 1.25s ease-in-out infinite;
 }
 
-.card em {
-  font-style: normal;
-  font-size: 0.78rem;
-  color: #eab15d;
-}
-
-.card.hearts,
-.card.diamonds {
-  color: #ffd3d0;
-}
-
 @keyframes discardPulse {
   0%,
   100% {
     transform: translateY(0);
-    border-color: rgba(247, 240, 221, 0.16);
+    border-color: #c8c0b0;
   }
   50% {
     transform: translateY(-3px);

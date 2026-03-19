@@ -353,6 +353,27 @@ function chooseDiscardForDifficulty(cards: Card[], difficulty: Difficulty) {
   return [...sorted].reverse().find((card) => isBadThree(card)) ?? sorted.find((card) => !isWild(card)) ?? sorted[0];
 }
 
+function opponentMeldSets(state: GameState, playerId: string) {
+  return state.players
+    .filter((p) => p.id !== playerId)
+    .flatMap((p) => p.melds.filter((m) => m.type === "set" && m.rank).map((m) => m.rank!));
+}
+
+function opponentMeldRuns(state: GameState, playerId: string) {
+  return state.players
+    .filter((p) => p.id !== playerId)
+    .flatMap((p) => p.melds.filter((m) => m.type === "run" && m.suit).map((m) => m.suit!));
+}
+
+function chooseDiscardAware(cards: Card[], difficulty: Difficulty, opponentRanks: string[], opponentSuits: string[]) {
+  const sorted = [...cards].sort((a, b) => cardPoints(a) - cardPoints(b));
+  // Hard: prefer discarding cards that don't match opponent melds
+  const safeDiscard = sorted.find(
+    (card) => !isWild(card) && !isBadThree(card) && !opponentRanks.includes(card.rank) && !opponentSuits.includes(card.suit),
+  );
+  return safeDiscard ?? chooseDiscardForDifficulty(cards, difficulty);
+}
+
 export function runCpuTurn(state: GameState) {
   const player = state.players[state.currentPlayer];
   if (!player.isCpu || state.winnerId) {
@@ -367,10 +388,21 @@ export function runCpuTurn(state: GameState) {
     });
   }
 
-  draft = drawFromStock(draft);
-  const active = activeCards(draft.players[draft.currentPlayer]);
   const difficulty = player.difficulty ?? "easy";
 
+  // Medium/hard: pick up the discard pile if the top card fits an existing meld
+  const topDiscard = draft.discard[0];
+  const currentMelds = draft.players[draft.currentPlayer].melds;
+  const discardFitsExistingMeld = topDiscard && currentMelds.some((meld) => canAddToMeld(meld, [topDiscard]));
+  if (difficulty !== "easy" && discardFitsExistingMeld) {
+    const attempt = pickUpDiscard(draft);
+    draft = attempt.turn.drawn ? attempt : drawFromStock(draft);
+  } else {
+    draft = drawFromStock(draft);
+  }
+
+  // Try to create new melds
+  const active = activeCards(draft.players[draft.currentPlayer]);
   const sets = rankBucket(active).filter((bucket) => bucket.length >= 3);
   const candidateSet = sets.find((bucket) => canCreateMeld(bucket.slice(0, 3)).ok);
   if (candidateSet) {
@@ -383,20 +415,21 @@ export function runCpuTurn(state: GameState) {
     }
   }
 
-  for (const meld of draft.players[draft.currentPlayer].melds) {
-    const currentCards = activeCards(draft.players[draft.currentPlayer]);
-    const addable = currentCards.filter((card) => {
-      if (meld.type === "set") {
-        return card.rank === meld.rank || isWild(card);
+  // Medium/hard: add to existing melds, but only once down to avoid getting stuck on the 90-point rule
+  if (difficulty !== "easy" && draft.players[draft.currentPlayer].hasGoneDown) {
+    for (const meld of draft.players[draft.currentPlayer].melds) {
+      const currentCards = activeCards(draft.players[draft.currentPlayer]);
+      const addable = currentCards.filter((card) => canAddToMeld(meld, [card]));
+      if (addable.length) {
+        draft = addToMeld(draft, player.id, meld.id, [addable[0].id]);
       }
-      return card.suit === meld.suit || isWild(card);
-    });
-    if (addable.length && difficulty !== "easy") {
-      draft = addToMeld(draft, player.id, meld.id, [addable[0].id]);
     }
   }
 
   const latestCards = activeCards(draft.players[draft.currentPlayer]);
-  const discard = chooseDiscardForDifficulty(latestCards, difficulty);
+  const discard =
+    difficulty === "hard"
+      ? chooseDiscardAware(latestCards, difficulty, opponentMeldSets(draft, player.id), opponentMeldRuns(draft, player.id))
+      : chooseDiscardForDifficulty(latestCards, difficulty);
   return discard ? discardCard(draft, player.id, discard.id) : draft;
 }

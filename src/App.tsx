@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   addToMeld,
   chooseStartingHand,
@@ -9,7 +9,7 @@ import {
   pickUpDiscard,
   runCpuTurn,
 } from "./game/engine";
-import { cardLabel, cardPoints } from "./game/rules";
+import { cardLabel, SUIT_SYMBOL } from "./game/rules";
 import { createRoom, fetchFinishedGames, fetchRoomByCode, getSessionUser, joinRoom, recordFinishedGame, signIn, subscribeToRoom, supabase, updateRoomState } from "./lib/supabase";
 import type { Card, Difficulty, GameState, Meld } from "./types";
 
@@ -17,6 +17,40 @@ const ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 function randomRoomCode() {
   return Array.from({ length: 6 }, () => ROOM_ALPHABET[Math.floor(Math.random() * ROOM_ALPHABET.length)]).join("");
+}
+
+function HandCard({ card, selected, mustDiscard, onToggle, onDiscard }: {
+  card: Card;
+  selected: boolean;
+  mustDiscard: boolean;
+  onToggle: () => void;
+  onDiscard: () => void;
+}) {
+  return (
+    <button
+      className={`card ${card.suit} ${selected ? "selected" : ""} ${mustDiscard ? "discard-ready" : ""}`}
+      onClick={onToggle}
+    >
+      <div className="card-corner">
+        <span className="card-rank">{card.rank === "JOKER" ? "Jkr" : card.rank}</span>
+        <span className="card-suit-sym">{SUIT_SYMBOL[card.suit]}</span>
+      </div>
+      <span className="card-pip">{SUIT_SYMBOL[card.suit]}</span>
+      <div className="card-corner card-corner-br">
+        <span className="card-rank">{card.rank === "JOKER" ? "Jkr" : card.rank}</span>
+        <span className="card-suit-sym">{SUIT_SYMBOL[card.suit]}</span>
+      </div>
+      <em
+        className="card-discard"
+        onClick={(event) => {
+          event.stopPropagation();
+          onDiscard();
+        }}
+      >
+        {mustDiscard ? "Discard now" : "Discard"}
+      </em>
+    </button>
+  );
 }
 
 function MeldStack({ meld, selectable, selected, onSelect }: { meld: Meld; selectable?: boolean; selected?: boolean; onSelect?: () => void }) {
@@ -34,8 +68,15 @@ function MeldStack({ meld, selectable, selected, onSelect }: { meld: Meld; selec
             style={{ left: `${index * 26}px`, zIndex: index + 1 }}
             title={cardLabel(card)}
           >
-            <span>{card.rank === "JOKER" ? "Jkr" : card.rank}</span>
-            <small>{card.suit === "joker" ? "★" : cardLabel(card).slice(-1)}</small>
+            <div className="mini-corner">
+              <span className="mini-rank">{card.rank === "JOKER" ? "Jkr" : card.rank}</span>
+              <small className="mini-suit-sym">{SUIT_SYMBOL[card.suit]}</small>
+            </div>
+            <span className="mini-pip">{SUIT_SYMBOL[card.suit]}</span>
+            <div className="mini-corner mini-corner-br">
+              <span className="mini-rank">{card.rank === "JOKER" ? "Jkr" : card.rank}</span>
+              <small className="mini-suit-sym">{SUIT_SYMBOL[card.suit]}</small>
+            </div>
           </div>
         ))}
       </div>
@@ -54,6 +95,7 @@ function MeldStack({ meld, selectable, selected, onSelect }: { meld: Meld; selec
 }
 
 function App() {
+  const remoteUpdateRef = useRef(false);
   const [email, setEmail] = useState("");
   const [authUser, setAuthUser] = useState<string | null>(null);
   const [state, setState] = useState<GameState | null>(null);
@@ -61,7 +103,7 @@ function App() {
   const [selected, setSelected] = useState<string[]>([]);
   const [selectedMeld, setSelectedMeld] = useState<string>("");
   const [deckCount, setDeckCount] = useState(2);
-  const [onlineName, setOnlineName] = useState("Bennett");
+  const [onlineName, setOnlineName] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [message, setMessage] = useState("Use your house rules as the source of truth.");
   const [history, setHistory] = useState<Array<{ id: string; created_at: string; scores: Array<{ id: string; name: string; score: number }> }>>([]);
@@ -85,13 +127,16 @@ function App() {
       name: player.name,
       score: player.score,
     }))).then(() => fetchFinishedGames().then(setHistory));
-  }, [state?.winnerId]);
+  }, [state?.winnerId, authUser]);
 
   useEffect(() => {
     if (!state || state.mode !== "online") {
       return;
     }
-    return subscribeToRoom(state.id, setState);
+    return subscribeToRoom(state.id, (remoteState) => {
+      remoteUpdateRef.current = true;
+      setState(remoteState);
+    });
   }, [state?.id, state?.mode]);
 
   useEffect(() => {
@@ -110,6 +155,10 @@ function App() {
 
   useEffect(() => {
     if (!state || state.mode !== "online") {
+      return;
+    }
+    if (remoteUpdateRef.current) {
+      remoteUpdateRef.current = false;
       return;
     }
     void updateRoomState(state.id, state);
@@ -349,31 +398,20 @@ function App() {
                     <p className="muted">Select cards to meld, then discard one to end the turn.</p>
                   </div>
                   <div className="cards hand-cards">
-                    {visibleCards.map((card) => {
-                      const isSelected = selected.includes(card.id);
-                      return (
-                        <button
-                          key={card.id}
-                          className={`card ${card.suit} ${isSelected ? "selected" : ""} ${mustDiscard ? "discard-ready" : ""}`}
-                          onClick={() =>
-                            setSelected((current) =>
-                              current.includes(card.id) ? current.filter((id) => id !== card.id) : [...current, card.id],
-                            )
-                          }
-                        >
-                          <span>{cardLabel(card)}</span>
-                          <small>{cardPoints(card)} pts</small>
-                          <em
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onDiscard(card.id);
-                            }}
-                          >
-                            {mustDiscard ? "Discard now" : "Discard"}
-                          </em>
-                        </button>
-                      );
-                    })}
+                    {visibleCards.map((card) => (
+                      <HandCard
+                        key={card.id}
+                        card={card}
+                        selected={selected.includes(card.id)}
+                        mustDiscard={mustDiscard}
+                        onToggle={() =>
+                          setSelected((current) =>
+                            current.includes(card.id) ? current.filter((id) => id !== card.id) : [...current, card.id],
+                          )
+                        }
+                        onDiscard={() => onDiscard(card.id)}
+                      />
+                    ))}
                   </div>
                 </section>
               </>
