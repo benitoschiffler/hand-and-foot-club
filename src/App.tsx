@@ -6,6 +6,7 @@ import {
   createMeld,
   discardCard,
   drawFromStock,
+  drawSplit,
   pickUpDiscard,
   runCpuTurn,
 } from "./game/engine";
@@ -45,6 +46,14 @@ function PlayingCard({ card, selected, onToggle }: {
 }
 
 function MeldStack({ meld, selectable, selected, onSelect }: { meld: Meld; selectable?: boolean; selected?: boolean; onSelect?: () => void }) {
+  const sortedCards = [...meld.cards].sort((a, b) => {
+    const isAWild = a.rank === "2" || a.rank === "JOKER";
+    const isBWild = b.rank === "2" || b.rank === "JOKER";
+    if (isAWild && !isBWild) return -1;
+    if (!isAWild && isBWild) return 1;
+    return 0;
+  });
+
   const body = (
     <>
       <div className="meld-header">
@@ -52,7 +61,7 @@ function MeldStack({ meld, selectable, selected, onSelect }: { meld: Meld; selec
         <span>{meld.cards.length} cards</span>
       </div>
       <div className="card-fan">
-        {meld.cards.map((card, index) => (
+        {sortedCards.map((card, index) => (
           <div
             key={card.id}
             className={`mini-card ${card.suit.toLowerCase()}`}
@@ -288,26 +297,33 @@ function App() {
             <div className="pile">
               <span className="pile-label">Discard Pile</span>
               {state.discard[0] ? (
-                <button 
-                  className={`playing-card ${state.discard[0].suit.toLowerCase()} ${canAct && !state.turn.drawn ? "" : "disabled"}`}
-                  onClick={() => canAct && !state.turn.drawn && update(pickUpDiscard(state))}
-                  disabled={!canAct || state.turn.drawn}
-                  style={{ width: '140px', height: '196px' }}
-                >
-                  <div>
-                    <div className="card-value">{state.discard[0].rank === "JOKER" ? "Jkr" : state.discard[0].rank}</div>
-                    <div className="card-suit">{SUIT_SYMBOL[state.discard[0].suit]}</div>
-                  </div>
-                  <div className="card-center">{SUIT_SYMBOL[state.discard[0].suit]}</div>
-                  <div style={{ transform: "rotate(180deg)", alignSelf: "flex-end" }}>
-                    <div className="card-value">{state.discard[0].rank === "JOKER" ? "Jkr" : state.discard[0].rank}</div>
-                    <div className="card-suit">{SUIT_SYMBOL[state.discard[0].suit]}</div>
-                  </div>
-                </button>
+                <div style={{display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center'}}>
+                  <button 
+                    className={`playing-card ${state.discard[0].suit.toLowerCase()} ${canAct && !state.turn.drawn ? "" : "disabled"}`}
+                    onClick={() => canAct && !state.turn.drawn && update(pickUpDiscard(state))}
+                    disabled={!canAct || state.turn.drawn}
+                    style={{ width: '140px', height: '196px' }}
+                  >
+                    <div>
+                      <div className="card-value">{state.discard[0].rank === "JOKER" ? "Jkr" : state.discard[0].rank}</div>
+                      <div className="card-suit">{SUIT_SYMBOL[state.discard[0].suit]}</div>
+                    </div>
+                    <div className="card-center">{SUIT_SYMBOL[state.discard[0].suit]}</div>
+                    <div style={{ transform: "rotate(180deg)", alignSelf: "flex-end" }}>
+                      <div className="card-value">{state.discard[0].rank === "JOKER" ? "Jkr" : state.discard[0].rank}</div>
+                      <div className="card-suit">{SUIT_SYMBOL[state.discard[0].suit]}</div>
+                    </div>
+                  </button>
+                  {canAct && !state.turn.drawn && state.discard.length > 1 && (
+                    <button className="btn btn-outline" style={{fontSize: '0.9rem', padding: '8px 12px', width: 'auto'}} onClick={() => update(drawSplit(state))}>
+                      Take Top + 1 from Deck
+                    </button>
+                  )}
+                  {canAct && !state.turn.drawn && state.discard.length > 0 && <div style={{color: '#059669', fontWeight: 'bold'}}>Tap card to Pick Up All</div>}
+                </div>
               ) : (
                 <div className="empty-discard">Empty</div>
               )}
-              {canAct && !state.turn.drawn && state.discard.length > 0 && <div style={{color: '#059669', fontWeight: 'bold'}}>Tap to Pick Up All</div>}
             </div>
           </section>
 

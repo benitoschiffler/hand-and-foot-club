@@ -9,7 +9,7 @@
 
 /* Base resets */
 * { box-sizing: border-box; }
-body { margin: 0; min-height: 100vh; display: flex; flex-direction: column; }
+body { margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 button { font: inherit; cursor: pointer; border: none; }
 h1, h2, h3, p { margin-top: 0; }
 
@@ -103,10 +103,11 @@ label {
 
 /* Table layout */
 .table-shell {
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
   background-color: #e5e7eb;
+  overflow: hidden;
 }
 .table-header {
   background: white;
@@ -136,10 +137,11 @@ label {
   padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 10px;
   max-width: 1400px;
   margin: 0 auto;
   width: 100%;
+  overflow: hidden;
 }
 
 /* Players zone */
@@ -148,6 +150,7 @@ label {
   gap: 20px;
   overflow-x: auto;
   padding-bottom: 10px;
+  flex-shrink: 0;
 }
 .player-card {
   background: white;
@@ -175,7 +178,8 @@ label {
   display: flex;
   justify-content: center;
   gap: 40px;
-  margin: 20px 0;
+  margin: 10px 0;
+  flex-shrink: 0;
 }
 .pile {
   display: flex;
@@ -285,23 +289,32 @@ label {
 /* Hand */
 .hand-area {
   background: white;
-  padding: 24px;
+  padding: 15px 24px 0 24px;
   border-radius: 24px 24px 0 0;
   box-shadow: 0 -4px 15px rgba(0,0,0,0.08);
   margin-top: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 .hand-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 15px;
+  flex-shrink: 0;
 }
 .hand-header h3 { margin: 0; font-size: 1.8rem; }
 .hand-cards {
+  flex: 1;
+  overflow-y: auto;
+  align-content: flex-start;
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
   justify-content: flex-start;
+  padding-bottom: 10px;
 }
 
 /* Playing Card */
@@ -352,7 +365,9 @@ label {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 15px;
-  margin-top: 25px;
+  margin-top: 15px;
+  margin-bottom: 15px;
+  flex-shrink: 0;
 }
 
 /* Choices Overlay */

@@ -53,7 +53,7 @@ export interface PlayerState {
 
 export interface TurnState {
   drawn: boolean;
-  source: "stock" | "discard" | null;
+  source: "stock" | "discard" | "split" | null;
   pickedDiscard: boolean;
   playedThisTurn: Card[];
 }

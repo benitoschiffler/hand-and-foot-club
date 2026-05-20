@@ -183,6 +183,22 @@ export function pickUpDiscard(state: GameState) {
   });
 }
 
+export function drawSplit(state: GameState) {
+  return mutate(state, (draft) => {
+    const player = draft.players[draft.currentPlayer];
+    if (!player.chosenHand || draft.turn.drawn || !draft.discard.length || !draft.stock.length) {
+      return;
+    }
+    const destination = activeCards(player);
+    destination.push(...draft.discard.splice(0, 1)); // top of discard
+    destination.push(...draft.stock.splice(0, 1)); // 1 from stock
+    setActiveCards(player, destination);
+    draft.turn.drawn = true;
+    draft.turn.source = "split";
+    draft.lastAction = `${player.name} drew 1 from discard and 1 from deck`;
+  });
+}
+
 export function createMeld(state: GameState, playerId: string, cardIds: string[]) {
   return mutate(state, (draft) => {
     const player = draft.players.find((entry) => entry.id === playerId);
