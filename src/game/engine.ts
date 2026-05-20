@@ -234,6 +234,33 @@ export function createMeld(state: GameState, playerId: string, cardIds: string[]
   });
 }
 
+export function undoMeldsThisTurn(state: GameState, playerId: string) {
+  return mutate(state, (draft) => {
+    const player = draft.players.find((entry) => entry.id === playerId);
+    if (!player || !draft.turn.playedThisTurn.length) return;
+
+    draft.turn.playedThisTurn.forEach((playedCard) => {
+      for (const meld of player.melds) {
+        const index = meld.cards.findIndex(c => c.id === playedCard.id);
+        if (index !== -1) {
+          meld.cards.splice(index, 1);
+          break;
+        }
+      }
+    });
+
+    player.melds = player.melds.filter(meld => meld.cards.length >= 3);
+    player.hand.push(...draft.turn.playedThisTurn);
+
+    if (player.melds.length === 0) {
+      player.hasGoneDown = false;
+    }
+
+    draft.turn.playedThisTurn = [];
+    draft.lastAction = `${player.name} undid their melds.`;
+  });
+}
+
 export function addToMeld(state: GameState, playerId: string, meldId: string, cardIds: string[]) {
   return mutate(state, (draft) => {
     const player = draft.players.find((entry) => entry.id === playerId);

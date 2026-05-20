@@ -247,11 +247,19 @@ label {
 }
 
 /* Melds */
+.melds-container {
+  background: white;
+  padding: 15px 20px;
+  border-radius: 20px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+  margin-bottom: 20px;
+}
+.melds-container h3 { margin: 0 0 15px 0; font-size: 1.4rem; }
+
 .melds-area {
   display: flex;
   flex-wrap: wrap;
   gap: 15px;
-  margin-top: 15px;
 }
 .meld-stack {
   background: #f9fafb;
@@ -329,6 +337,7 @@ label {
   flex-wrap: wrap;
   gap: 12px;
   justify-content: flex-start;
+  padding-top: 12px;
   padding-bottom: 10px;
   min-height: 130px;
 }

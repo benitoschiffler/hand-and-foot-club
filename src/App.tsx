@@ -9,8 +9,9 @@ import {
   drawSplit,
   pickUpDiscard,
   runCpuTurn,
+  undoMeldsThisTurn,
 } from "./game/engine";
-import { cardLabel, cardPoints, SUIT_SYMBOL } from "./game/rules";
+import { canAddToMeld, canCreateMeld, cardLabel, cardPoints, SUIT_SYMBOL } from "./game/rules";
 import { createRoom, fetchFinishedGames, fetchRoomByCode, getSessionUser, joinRoom, recordFinishedGame, signIn, subscribeToRoom, supabase, updateRoomState } from "./lib/supabase";
 import type { Card, Difficulty, GameState, Meld } from "./types";
 
@@ -254,6 +255,11 @@ function App() {
     });
   }
 
+  function onUndoMelds() {
+    if (!state || !viewer) return;
+    update(undoMeldsThisTurn(state, viewer.id));
+  }
+
   async function onEmailSignIn() {
     await signIn(email);
     setMessage(`Check your email! We sent a login link to ${email}.`);
@@ -360,26 +366,29 @@ function App() {
               </div>
             </div>
           ) : (
+            <>
+            {viewer.melds.length > 0 && (
+              <section className="melds-container">
+                <h3>Your Melds</h3>
+                <div className="melds-area">
+                  {viewer.melds.map((meld) => (
+                    <MeldStack
+                      key={meld.id}
+                      meld={meld}
+                      selectable={canPlay && selected.length > 0}
+                      selected={selectedMeld === meld.id}
+                      onSelect={() => setSelectedMeld(meld.id)}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+
             <section className="hand-area">
               <div className="hand-header">
                 <div>
                   <h3>{activeHandLabel} ({visibleCards.length} cards)</h3>
                   {viewer.foot.length > 0 && <p>Foot: {viewer.foot.length} cards waiting</p>}
-                </div>
-                <div>
-                  <h3>Your Melds</h3>
-                  <div className="melds-area">
-                    {viewer.melds.length === 0 && <p>No melds yet.</p>}
-                    {viewer.melds.map((meld) => (
-                      <MeldStack
-                        key={meld.id}
-                        meld={meld}
-                        selectable={canPlay && selected.length > 0}
-                        selected={selectedMeld === meld.id}
-                        onSelect={() => setSelectedMeld(meld.id)}
-                      />
-                    ))}
-                  </div>
                 </div>
               </div>
 
@@ -407,14 +416,14 @@ function App() {
                 <button 
                   className="btn btn-secondary" 
                   onClick={onCreateMeld} 
-                  disabled={!canPlay || selected.length < 3}
+                  disabled={!canPlay || selected.length < 3 || !canCreateMeld(selectedCards()).ok}
                 >
                   Create New Meld
                 </button>
                 <button 
                   className="btn btn-secondary" 
                   onClick={onAddToMeld} 
-                  disabled={!canPlay || !selectedMeld || selected.length === 0}
+                  disabled={!canPlay || !selectedMeld || selected.length === 0 || !canAddToMeld(viewer.melds.find(m => m.id === selectedMeld)!, selectedCards())}
                 >
                   Add to Selected Meld
                 </button>
@@ -425,6 +434,15 @@ function App() {
                 >
                   Discard Selected Card to End Turn
                 </button>
+                {canAct && state.turn.drawn && !viewer.hasGoneDown && state.turn.playedThisTurn.length > 0 && turnMeldPoints < 90 && (
+                  <button 
+                    className="btn btn-outline" 
+                    onClick={onUndoMelds}
+                    style={{color: '#ef4444', borderColor: '#ef4444'}}
+                  >
+                    Undo Melds (Need 90 pts)
+                  </button>
+                )}
                 <div style={{display: 'flex', gap: '5px'}}>
                   <button 
                     className="btn btn-outline" 
@@ -445,6 +463,7 @@ function App() {
                 </div>
               </div>
             </section>
+            </>
           )}
           </div>
         </main>
