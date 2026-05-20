@@ -136,20 +136,35 @@ label {
   flex: 1;
   padding: 15px 20px;
   display: flex;
-  flex-direction: column;
-  gap: 10px;
-  max-width: 1400px;
+  flex-direction: row;
+  gap: 20px;
+  max-width: 1600px;
   margin: 0 auto;
   width: 100%;
-  overflow-y: auto; /* Fallback scroll if screen is too small */
+  overflow: hidden;
+}
+
+.table-left-column {
+  flex: 0 0 350px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+  padding-right: 10px;
+}
+
+.table-right-column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 /* Players zone */
 .opponent-area {
   display: flex;
+  flex-direction: column;
   gap: 15px;
-  overflow-x: auto;
-  padding-bottom: 5px;
   flex-shrink: 0;
 }
 .player-card {
@@ -177,8 +192,8 @@ label {
 .center-area {
   display: flex;
   justify-content: center;
-  gap: 30px;
-  margin: 5px 0 10px 0;
+  gap: 20px;
+  margin: 0;
   flex-shrink: 0;
 }
 .pile {
@@ -293,11 +308,10 @@ label {
   padding: 15px 20px 0 20px;
   border-radius: 20px 20px 0 0;
   box-shadow: 0 -4px 15px rgba(0,0,0,0.08);
-  margin-top: auto;
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 250px; /* Guarantee cards are always visible */
+  min-height: 250px;
 }
 .hand-header {
   display: flex;

@@ -94,7 +94,7 @@ function App() {
   const [viewerPlayerId, setViewerPlayerId] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [selectedMeld, setSelectedMeld] = useState<string>("");
-  const [deckCount, setDeckCount] = useState(2);
+  const [deckCount, setDeckCount] = useState(3);
   const [onlineName, setOnlineName] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [message, setMessage] = useState("Welcome! Tap a button below to get started.");
@@ -240,6 +240,20 @@ function App() {
     update(discardCard(state, viewer.id, selected[0]));
   }
 
+  function onMoveCard(direction: -1 | 1) {
+    if (selected.length !== 1) return;
+    const id = selected[0];
+    setHandOrder((prev) => {
+      const index = prev.indexOf(id);
+      if (index < 0) return prev;
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= prev.length) return prev;
+      const copy = [...prev];
+      [copy[index], copy[nextIndex]] = [copy[nextIndex], copy[index]];
+      return copy;
+    });
+  }
+
   async function onEmailSignIn() {
     await signIn(email);
     setMessage(`Check your email! We sent a login link to ${email}.`);
@@ -265,7 +279,8 @@ function App() {
         </header>
 
         <main className="table-felt">
-          <section className="opponent-area">
+          <div className="table-left-column">
+            <section className="opponent-area">
             {opponents.map((player) => (
               <div key={player.id} className={`player-card ${player.id === currentPlayer.id ? "active" : ""}`}>
                 <div className="player-name">{player.name}</div>
@@ -326,7 +341,9 @@ function App() {
               )}
             </div>
           </section>
+          </div>
 
+          <div className="table-right-column">
           {!viewer.chosenHand && viewer.handChoice ? (
             <div className="overlay">
               <div className="dialog">
@@ -408,9 +425,28 @@ function App() {
                 >
                   Discard Selected Card to End Turn
                 </button>
+                <div style={{display: 'flex', gap: '5px'}}>
+                  <button 
+                    className="btn btn-outline" 
+                    style={{flex: 1}}
+                    onClick={() => onMoveCard(-1)} 
+                    disabled={selected.length !== 1}
+                  >
+                    &lt; Move Left
+                  </button>
+                  <button 
+                    className="btn btn-outline" 
+                    style={{flex: 1}}
+                    onClick={() => onMoveCard(1)} 
+                    disabled={selected.length !== 1}
+                  >
+                    Move Right &gt;
+                  </button>
+                </div>
               </div>
             </section>
           )}
+          </div>
         </main>
       </div>
     );
