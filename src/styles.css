@@ -288,8 +288,7 @@ label {
 /* Cards */
 .card-fan {
   position: relative;
-  height: 110px;
-  min-width: 90px;
+  height: 100px;
 }
 .mini-card {
   position: absolute;

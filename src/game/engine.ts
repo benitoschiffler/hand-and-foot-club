@@ -118,15 +118,15 @@ export function chooseStartingHand(state: GameState, playerId: string, optionInd
 }
 
 function activeCards(player: PlayerState) {
-  return player.hand.length ? player.hand : player.foot;
+  return !player.footRevealed ? player.hand : player.foot;
 }
 
 function setActiveCards(player: PlayerState, cards: Card[]) {
-  if (player.hand.length) {
+  if (!player.footRevealed) {
     player.hand = sortCardsForDisplay(cards);
-    return;
+  } else {
+    player.foot = sortCardsForDisplay(cards);
   }
-  player.foot = sortCardsForDisplay(cards);
 }
 
 function resetTurn(state: GameState) {
@@ -148,10 +148,22 @@ function maybeRevealFoot(player: PlayerState) {
   }
 }
 
+function replenishStock(draft: GameState) {
+  if (draft.stock.length < 2 && draft.discard.length > 0) {
+    draft.stock.push(...shuffle(draft.discard));
+    draft.discard = [];
+    draft.lastAction = "Discard pile was shuffled into the deck";
+  }
+}
+
 export function drawFromStock(state: GameState) {
   return mutate(state, (draft) => {
     const player = draft.players[draft.currentPlayer];
-    if (!player.chosenHand || draft.turn.drawn || draft.stock.length < 2) {
+    if (!player.chosenHand || draft.turn.drawn) {
+      return;
+    }
+    replenishStock(draft);
+    if (draft.stock.length < 2) {
       return;
     }
     const destination = activeCards(player);
@@ -172,9 +184,14 @@ export function pickUpDiscard(state: GameState) {
     const originalDiscardCount = draft.discard.length;
     const destination = activeCards(player);
     destination.push(...draft.discard.splice(0));
-    if (originalDiscardCount === 1 && draft.stock.length) {
-      destination.push(...draft.stock.splice(0, 1));
+    
+    if (originalDiscardCount === 1) {
+      replenishStock(draft);
+      if (draft.stock.length) {
+        destination.push(...draft.stock.splice(0, 1));
+      }
     }
+    
     setActiveCards(player, destination);
     draft.turn.drawn = true;
     draft.turn.source = "discard";
@@ -186,7 +203,11 @@ export function pickUpDiscard(state: GameState) {
 export function drawSplit(state: GameState) {
   return mutate(state, (draft) => {
     const player = draft.players[draft.currentPlayer];
-    if (!player.chosenHand || draft.turn.drawn || !draft.discard.length || !draft.stock.length) {
+    if (!player.chosenHand || draft.turn.drawn || !draft.discard.length) {
+      return;
+    }
+    replenishStock(draft);
+    if (!draft.stock.length) {
       return;
     }
     const destination = activeCards(player);
@@ -230,7 +251,7 @@ export function createMeld(state: GameState, playerId: string, cardIds: string[]
       player.hasGoneDown = true;
     }
     maybeRevealFoot(player);
-    draft.lastAction = `${player.name} created a ${type} meld`;
+    draft.lastAction = `${player.name} created a ${type} basket`;
   });
 }
 
@@ -280,11 +301,12 @@ export function addToMeld(state: GameState, playerId: string, meldId: string, ca
       draft.lastAction = "Those cards do not fit that meld.";
       return;
     }
-    meld.cards.push(...cards);
-    meld.cards = sortCardsForDisplay(meld.cards);
+    const targetMeld = player.melds.find((m) => m.id === meldId)!;
+    targetMeld.cards.push(...cards);
+    targetMeld.cards = sortCardsForDisplay(targetMeld.cards);
     draft.turn.playedThisTurn.push(...cards);
     maybeRevealFoot(player);
-    draft.lastAction = `${player.name} added to a meld`;
+    draft.lastAction = `${player.name} added to a basket`;
   });
 }
 
@@ -298,13 +320,14 @@ export function discardCard(state: GameState, playerId: string, cardId: string) 
       draft.lastAction = "You cannot end the turn until your first melds total 90 points.";
       return;
     }
-    const cards = activeCards(player);
-    const index = cards.findIndex((card) => card.id === cardId);
+    const sourceCards = activeCards(player);
+    const index = sourceCards.findIndex((card) => card.id === cardId);
     if (index === -1) {
       return;
     }
-    const [card] = cards.splice(index, 1);
-    setActiveCards(player, cards);
+    const newCards = [...sourceCards];
+    const [card] = newCards.splice(index, 1);
+    setActiveCards(player, newCards);
     draft.discard.unshift(card);
     if (!player.hand.length && player.foot.length && !player.footRevealed) {
       player.footRevealed = true;
@@ -339,16 +362,11 @@ function turnPoints(state: GameState) {
 }
 
 function takeCards(player: PlayerState, cardIds: string[]) {
-  const cards = activeCards(player);
-  const removed: Card[] = [];
-  for (const id of cardIds) {
-    const index = cards.findIndex((card) => card.id === id);
-    if (index !== -1) {
-      removed.push(cards.splice(index, 1)[0]);
-    }
-  }
-  setActiveCards(player, cards);
-  return removed;
+  const source = activeCards(player);
+  const taken = source.filter((c) => cardIds.includes(c.id));
+  const remaining = source.filter((c) => !cardIds.includes(c.id));
+  setActiveCards(player, remaining);
+  return taken;
 }
 
 function restoreCards(player: PlayerState, cards: Card[]) {
@@ -434,6 +452,8 @@ export function runCpuTurn(state: GameState) {
   const difficulty = player.difficulty ?? "easy";
 
   // Medium/hard: pick up the discard pile if the top card fits an existing meld
+  // Medium/hard: pick up the discard pile if it has good cards, or always?
+  // Wait, the rules say you can pick up discard anytime. Let's have CPU randomly do it sometimes, or if it fits melds.
   const topDiscard = draft.discard[0];
   const currentMelds = draft.players[draft.currentPlayer].melds;
   const discardFitsExistingMeld = topDiscard && currentMelds.some((meld) => canAddToMeld(meld, [topDiscard]));

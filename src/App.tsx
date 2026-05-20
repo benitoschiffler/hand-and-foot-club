@@ -61,7 +61,7 @@ function MeldStack({ meld, selectable, selected, onSelect }: { meld: Meld; selec
         <span>{meld.type === "set" ? "Set" : "Run"}</span>
         <span>{meld.cards.length} cards</span>
       </div>
-      <div className="card-fan">
+      <div className="card-fan" style={{ width: `${Math.max(120, (sortedCards.length - 1) * 26 + 40)}px` }}>
         {sortedCards.map((card, index) => (
           <div
             key={card.id}
@@ -255,7 +255,7 @@ function App() {
     });
   }
 
-  function onUndoMelds() {
+  function onUndoBaskets() {
     if (!state || !viewer) return;
     update(undoMeldsThisTurn(state, viewer.id));
   }
@@ -369,7 +369,7 @@ function App() {
             <>
             {viewer.melds.length > 0 && (
               <section className="melds-container">
-                <h3>Your Melds</h3>
+                <h3>Your Baskets</h3>
                 <div className="melds-area">
                   {viewer.melds.map((meld) => (
                     <MeldStack
@@ -416,16 +416,16 @@ function App() {
                 <button 
                   className="btn btn-secondary" 
                   onClick={onCreateMeld} 
-                  disabled={!canPlay || selected.length < 3 || !canCreateMeld(selectedCards()).ok}
+                  disabled={!canPlay || selected.length < 3 || !canCreateMeld(selectedCards()).ok || (viewer.footRevealed && selected.length === visibleCards.length)}
                 >
-                  Create New Meld
+                  Create New Basket
                 </button>
                 <button 
                   className="btn btn-secondary" 
                   onClick={onAddToMeld} 
-                  disabled={!canPlay || !selectedMeld || selected.length === 0 || !canAddToMeld(viewer.melds.find(m => m.id === selectedMeld)!, selectedCards())}
+                  disabled={!canPlay || !selectedMeld || selected.length === 0 || !canAddToMeld(viewer.melds.find(m => m.id === selectedMeld)!, selectedCards()) || (viewer.footRevealed && selected.length === visibleCards.length)}
                 >
-                  Add to Selected Meld
+                  Add to Selected Basket
                 </button>
                 <button 
                   className="btn btn-danger" 
@@ -437,10 +437,10 @@ function App() {
                 {canAct && state.turn.drawn && !viewer.hasGoneDown && state.turn.playedThisTurn.length > 0 && turnMeldPoints < 90 && (
                   <button 
                     className="btn btn-outline" 
-                    onClick={onUndoMelds}
+                    onClick={onUndoBaskets}
                     style={{color: '#ef4444', borderColor: '#ef4444'}}
                   >
-                    Undo Melds (Need 90 pts)
+                    Undo Baskets (Need 90 pts)
                   </button>
                 )}
                 <div style={{display: 'flex', gap: '5px'}}>
