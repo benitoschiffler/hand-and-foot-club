@@ -134,22 +134,22 @@ label {
 
 .table-felt {
   flex: 1;
-  padding: 20px;
+  padding: 15px 20px;
   display: flex;
   flex-direction: column;
   gap: 10px;
   max-width: 1400px;
   margin: 0 auto;
   width: 100%;
-  overflow: hidden;
+  overflow-y: auto; /* Fallback scroll if screen is too small */
 }
 
 /* Players zone */
 .opponent-area {
   display: flex;
-  gap: 20px;
+  gap: 15px;
   overflow-x: auto;
-  padding-bottom: 10px;
+  padding-bottom: 5px;
   flex-shrink: 0;
 }
 .player-card {
@@ -177,8 +177,8 @@ label {
 .center-area {
   display: flex;
   justify-content: center;
-  gap: 40px;
-  margin: 10px 0;
+  gap: 30px;
+  margin: 5px 0 10px 0;
   flex-shrink: 0;
 }
 .pile {
@@ -189,16 +189,16 @@ label {
 }
 .pile-label {
   font-weight: bold;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   color: #374151;
 }
 .deck-card {
-  width: 140px;
-  height: 196px;
+  width: 100px;
+  height: 140px;
   background: #1e3a8a;
   border-radius: 12px;
-  border: 6px solid white;
-  box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+  border: 4px solid white;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -215,12 +215,12 @@ label {
   cursor: not-allowed;
 }
 .deck-count {
-  font-size: 2.5rem;
+  font-size: 2rem;
   font-weight: bold;
 }
 .empty-discard {
-  width: 140px;
-  height: 196px;
+  width: 100px;
+  height: 140px;
   border: 4px dashed #9ca3af;
   border-radius: 12px;
   display: flex;
@@ -289,42 +289,43 @@ label {
 /* Hand */
 .hand-area {
   background: white;
-  padding: 15px 24px 0 24px;
-  border-radius: 24px 24px 0 0;
+  padding: 15px 20px 0 20px;
+  border-radius: 20px 20px 0 0;
   box-shadow: 0 -4px 15px rgba(0,0,0,0.08);
   margin-top: auto;
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  min-height: 250px; /* Guarantee cards are always visible */
 }
 .hand-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 15px;
+  margin-bottom: 10px;
   flex-shrink: 0;
 }
-.hand-header h3 { margin: 0; font-size: 1.8rem; }
+.hand-header h3 { margin: 0; font-size: 1.4rem; }
 .hand-cards {
   flex: 1;
   overflow-y: auto;
   align-content: flex-start;
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: 12px;
   justify-content: flex-start;
   padding-bottom: 10px;
+  min-height: 130px;
 }
 
 /* Playing Card */
 .playing-card {
-  width: 110px;
-  height: 154px;
+  width: 90px;
+  height: 126px;
   background: white;
   border: 3px solid #d1d5db;
-  border-radius: 12px;
-  padding: 10px;
+  border-radius: 8px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -339,16 +340,16 @@ label {
 .playing-card.selected {
   border-color: #3b82f6;
   border-width: 4px;
-  transform: translateY(-12px);
-  box-shadow: 0 12px 20px -3px rgba(59, 130, 246, 0.4);
+  transform: translateY(-8px);
+  box-shadow: 0 8px 15px -3px rgba(59, 130, 246, 0.4);
 }
 .card-value {
-  font-size: 1.6rem;
+  font-size: 1.4rem;
   font-weight: 900;
   line-height: 1;
 }
 .card-suit {
-  font-size: 1.3rem;
+  font-size: 1.1rem;
   line-height: 1;
 }
 .card-center {
@@ -356,17 +357,17 @@ label {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 3.5rem;
+  font-size: 2.5rem;
   opacity: 0.15;
 }
 
 /* Action Bar */
 .action-bar {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 15px;
-  margin-top: 15px;
-  margin-bottom: 15px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+  margin-bottom: 10px;
   flex-shrink: 0;
 }
 

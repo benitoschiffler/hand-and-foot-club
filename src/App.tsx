@@ -302,7 +302,7 @@ function App() {
                     className={`playing-card ${state.discard[0].suit.toLowerCase()} ${canAct && !state.turn.drawn ? "" : "disabled"}`}
                     onClick={() => canAct && !state.turn.drawn && update(pickUpDiscard(state))}
                     disabled={!canAct || state.turn.drawn}
-                    style={{ width: '140px', height: '196px' }}
+                    style={{ width: '100px', height: '140px' }}
                   >
                     <div>
                       <div className="card-value">{state.discard[0].rank === "JOKER" ? "Jkr" : state.discard[0].rank}</div>
