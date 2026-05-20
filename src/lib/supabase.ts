@@ -78,7 +78,15 @@ export function subscribeToRoom(gameId: string, onState: (state: GameState) => v
       { event: "UPDATE", schema: "public", table: "games", filter: `id=eq.${gameId}` },
       (payload) => onState(payload.new.state as GameState),
     )
-    .subscribe();
+    .subscribe((status, err) => {
+      if (status === 'SUBSCRIBED') {
+        console.log(`Successfully connected to room ${gameId}.`);
+      } else if (status === 'CHANNEL_ERROR') {
+        console.error(`Realtime channel error for room ${gameId}:`, err);
+      } else if (status === 'TIMED_OUT') {
+        console.error(`Realtime connection timed out for room ${gameId}.`);
+      }
+    });
 
   return () => {
     void supabase.removeChannel(channel);
