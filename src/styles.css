@@ -279,6 +279,7 @@ label {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  text-align: left;
   padding: 6px;
   font-weight: bold;
   font-size: 1.1rem;
@@ -329,6 +330,7 @@ label {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  text-align: left;
   box-shadow: 0 4px 6px rgba(0,0,0,0.1);
   cursor: pointer;
   transition: all 0.2s;

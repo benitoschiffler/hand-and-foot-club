@@ -367,7 +367,7 @@ function App() {
               </div>
 
               {canAct && state.turn.drawn && !viewer.hasGoneDown && state.turn.playedThisTurn.length > 0 && turnMeldPoints < 90 && (
-                <div className="banner" style={{marginBottom: '20px'}}>
+                <div style={{ color: '#b45309', fontWeight: 'bold', fontSize: '1rem', textAlign: 'center', marginBottom: '10px' }}>
                   You need 90 points to go down. You have played {turnMeldPoints} points this turn.
                 </div>
               )}
