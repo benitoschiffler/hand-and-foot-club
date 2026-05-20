@@ -455,15 +455,22 @@ export function runCpuTurn(state: GameState) {
       .reduce((sum, r) => sum + r.slice(0, 3).reduce((s, c) => s + cardPoints(c), 0), 0);
 
   if (alreadyDown || availableMeldPoints >= 90) {
-    const sets = rankBucket(active).filter((bucket) => bucket.length >= 3);
-    const candidateSet = sets.find((bucket) => canCreateMeld(bucket.slice(0, 3)).ok);
-    if (candidateSet) {
-      draft = createMeld(draft, player.id, candidateSet.slice(0, Math.min(candidateSet.length, 4)).map((card) => card.id));
-    } else {
-      const runs = suitRuns(active);
-      const run = runs.find((bucket) => canCreateMeld(bucket.slice(0, 3)).ok);
-      if (run) {
-        draft = createMeld(draft, player.id, run.slice(0, 3).map((card) => card.id));
+    let playedSomething = true;
+    while (playedSomething) {
+      playedSomething = false;
+      const currentActive = activeCards(draft.players[draft.currentPlayer]);
+      const sets = rankBucket(currentActive).filter((bucket) => bucket.length >= 3);
+      const candidateSet = sets.find((bucket) => canCreateMeld(bucket.slice(0, 3)).ok);
+      if (candidateSet) {
+        draft = createMeld(draft, player.id, candidateSet.slice(0, Math.min(candidateSet.length, 4)).map((card) => card.id));
+        playedSomething = true;
+      } else {
+        const runs = suitRuns(currentActive);
+        const run = runs.find((bucket) => canCreateMeld(bucket.slice(0, 3)).ok);
+        if (run) {
+          draft = createMeld(draft, player.id, run.slice(0, 3).map((card) => card.id));
+          playedSomething = true;
+        }
       }
     }
   }

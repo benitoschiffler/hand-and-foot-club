@@ -149,7 +149,7 @@ label {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  overflow-y: auto;
+  overflow: hidden;
   padding-right: 10px;
 }
 
@@ -165,7 +165,8 @@ label {
   display: flex;
   flex-direction: column;
   gap: 15px;
-  flex-shrink: 0;
+  flex: 1;
+  overflow-y: auto;
 }
 .player-card {
   background: white;
