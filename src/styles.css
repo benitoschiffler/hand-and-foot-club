@@ -347,7 +347,6 @@ label {
   flex-shrink: 0;
   position: relative;
   z-index: 1;
-  transition: transform 0.2s;
 }
 .hand-cards > div:first-child {
   margin-left: 0;
