@@ -59,7 +59,7 @@ function SortablePlayingCard({ card, selected, onToggle }: {
     transform: CSS.Transform.toString(transform),
     transition,
     touchAction: 'none', // Prevent scrolling on touch devices while dragging
-    zIndex: isDragging ? 50 : undefined,
+    zIndex: isDragging ? 50 : (selected ? 5 : undefined),
   };
 
   return (
