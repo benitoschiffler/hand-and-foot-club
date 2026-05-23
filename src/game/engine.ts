@@ -164,6 +164,9 @@ export function drawFromStock(state: GameState) {
     }
     replenishStock(draft);
     if (draft.stock.length < 2) {
+      draft.winnerId = "draw";
+      draft.lastAction = "The deck ran out of cards. Game over.";
+      finishGame(draft, "");
       return;
     }
     const destination = activeCards(player);
@@ -208,6 +211,9 @@ export function drawSplit(state: GameState) {
     }
     replenishStock(draft);
     if (!draft.stock.length) {
+      draft.winnerId = "draw";
+      draft.lastAction = "The deck ran out of cards. Game over.";
+      finishGame(draft, "");
       return;
     }
     const destination = activeCards(player);
@@ -251,7 +257,14 @@ export function createMeld(state: GameState, playerId: string, cardIds: string[]
       player.hasGoneDown = true;
     }
     maybeRevealFoot(player);
-    draft.lastAction = `${player.name} created a ${type} basket`;
+    if (!player.hand.length && !player.foot.length) {
+      player.score = 0;
+      draft.winnerId = player.id;
+      draft.lastAction = `${player.name} went out`;
+      finishGame(draft, player.id);
+    } else {
+      draft.lastAction = `${player.name} created a ${type} basket`;
+    }
   });
 }
 
@@ -306,7 +319,14 @@ export function addToMeld(state: GameState, playerId: string, meldId: string, ca
     targetMeld.cards = sortCardsForDisplay(targetMeld.cards);
     draft.turn.playedThisTurn.push(...cards);
     maybeRevealFoot(player);
-    draft.lastAction = `${player.name} added to a basket`;
+    if (!player.hand.length && !player.foot.length) {
+      player.score = 0;
+      draft.winnerId = player.id;
+      draft.lastAction = `${player.name} went out`;
+      finishGame(draft, player.id);
+    } else {
+      draft.lastAction = `${player.name} added to a basket`;
+    }
   });
 }
 
@@ -464,6 +484,10 @@ export function runCpuTurn(state: GameState) {
     draft = drawFromStock(draft);
   }
 
+  if (draft.winnerId || !draft.turn.drawn) {
+    return draft;
+  }
+
   // Only create new melds if already down, or if meld points this turn can reach 90
   const active = activeCards(draft.players[draft.currentPlayer]);
   const alreadyDown = draft.players[draft.currentPlayer].hasGoneDown;
@@ -498,12 +522,26 @@ export function runCpuTurn(state: GameState) {
   // Medium/hard: add to existing melds, but only once down to avoid getting stuck on the 90-point rule
   if (difficulty !== "easy" && draft.players[draft.currentPlayer].hasGoneDown) {
     for (const meld of draft.players[draft.currentPlayer].melds) {
-      const currentCards = activeCards(draft.players[draft.currentPlayer]);
-      const addable = currentCards.filter((card) => canAddToMeld(meld, [card]));
-      if (addable.length) {
-        draft = addToMeld(draft, player.id, meld.id, [addable[0].id]);
+      let addedSomething = true;
+      while (addedSomething) {
+        addedSomething = false;
+        const currentCards = activeCards(draft.players[draft.currentPlayer]);
+        const addable = currentCards.filter((card) => canAddToMeld(meld, [card]));
+        if (addable.length) {
+          draft = addToMeld(draft, player.id, meld.id, [addable[0].id]);
+          addedSomething = true;
+        }
       }
     }
+  }
+
+  if (draft.winnerId) {
+    return draft;
+  }
+
+  // Safety net: if we tried to go down but failed to reach 90 points, undo our melds
+  if (!draft.players[draft.currentPlayer].hasGoneDown && draft.turn.playedThisTurn.length > 0) {
+    draft = undoMeldsThisTurn(draft, player.id);
   }
 
   const latestCards = activeCards(draft.players[draft.currentPlayer]);
