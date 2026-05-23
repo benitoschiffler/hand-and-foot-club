@@ -271,11 +271,15 @@ label {
   transition: all 0.2s;
   min-width: 150px;
 }
+.meld-stack:hover {
+  z-index: 5;
+}
 .meld-stack.selected {
   border-color: #3b82f6;
   background: #eff6ff;
   transform: translateY(-4px);
   box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.3);
+  z-index: 10;
 }
 .meld-header {
   font-weight: bold;
