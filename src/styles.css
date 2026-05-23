@@ -332,24 +332,23 @@ label {
 .hand-header h3 { margin: 0; font-size: 1.4rem; }
 .hand-cards {
   flex: 1;
-  overflow-x: auto;
-  overflow-y: visible;
+  overflow: visible;
   display: flex;
-  flex-wrap: nowrap;
-  gap: 0;
+  flex-wrap: wrap;
+  gap: 15px 0;
   justify-content: flex-start;
   padding: 20px 10px;
   min-height: 180px;
   order: 3;
 }
 .hand-cards > div {
-  margin-left: -50px;
+  margin-right: -50px;
   flex-shrink: 0;
   position: relative;
   z-index: 1;
 }
-.hand-cards > div:first-child {
-  margin-left: 0;
+.hand-cards > div:last-child {
+  margin-right: 0;
 }
 .hand-cards > div:hover {
   z-index: 10;

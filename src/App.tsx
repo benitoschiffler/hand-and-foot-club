@@ -14,8 +14,8 @@ import {
 import { canAddToMeld, canCreateMeld, cardLabel, cardPoints, SUIT_SYMBOL } from "./game/rules";
 import { createRoom, fetchFinishedGames, fetchRoomByCode, getSessionUser, joinRoom, recordFinishedGame, signIn, subscribeToRoom, supabase, updateRoomState } from "./lib/supabase";
 import type { Card, Difficulty, GameState, Meld } from "./types";
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
-import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor, useSensor, useSensors, DragEndEvent, useDroppable } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
 const ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -69,7 +69,17 @@ function SortablePlayingCard({ card, selected, onToggle }: {
   );
 }
 
+function DroppableDiscard({ children }: { children: React.ReactNode }) {
+  const { isOver, setNodeRef } = useDroppable({ id: 'discard-pile' });
+  return (
+    <div ref={setNodeRef} style={{ outline: isOver ? '4px solid #ef4444' : 'none', borderRadius: '12px' }}>
+      {children}
+    </div>
+  );
+}
+
 function MeldStack({ meld, selectable, selected, onSelect }: { meld: Meld; selectable?: boolean; selected?: boolean; onSelect?: () => void }) {
+  const { isOver, setNodeRef } = useDroppable({ id: `meld-${meld.id}` });
   const sortedCards = [...meld.cards].sort((a, b) => {
     const isAWild = a.rank === "2" || a.rank === "JOKER";
     const isBWild = b.rank === "2" || b.rank === "JOKER";
@@ -102,8 +112,10 @@ function MeldStack({ meld, selectable, selected, onSelect }: { meld: Meld; selec
 
   return (
     <div
+      ref={setNodeRef}
       className={`meld-stack ${selectable ? "selectable" : ""} ${selected ? "selected" : ""}`}
       onClick={selectable ? onSelect : undefined}
+      style={{ outline: isOver ? '4px solid #3b82f6' : 'none' }}
     >
       {body}
     </div>
@@ -283,10 +295,52 @@ function App() {
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
-    if (active.id !== over?.id) {
+    if (!over) return;
+    if (!state || !viewer) return;
+
+    const currentPlayer = state.players[state.currentPlayer];
+    const canAct = currentPlayer.id === viewer.id && !viewer.isCpu && !state.winnerId;
+
+    if (over.id === 'discard-pile') {
+      const turnMeldPoints = state.turn.playedThisTurn.reduce((sum, card) => sum + cardPoints(card), 0);
+      const canDiscard = !state.turn.playedThisTurn.length || viewer.hasGoneDown || turnMeldPoints >= 90;
+      const mustDiscard = canAct && state.turn.drawn && viewer.chosenHand && canDiscard;
+      
+      if (mustDiscard) {
+        update(discardCard(state, viewer.id, active.id as string));
+      }
+      return;
+    }
+
+    if (String(over.id).startsWith('meld-')) {
+      const meldId = String(over.id).replace('meld-', '');
+      const meld = viewer.melds.find((m) => m.id === meldId);
+      if (!meld) return;
+
+      const draggedCard = visibleCards.find((c) => c.id === active.id);
+      if (!draggedCard) return;
+
+      let cardsToAdd = [draggedCard.id];
+      if (selected.includes(draggedCard.id)) {
+        if (canAddToMeld(meld, selectedCards())) {
+          cardsToAdd = selected;
+        } else if (canAddToMeld(meld, [draggedCard])) {
+          cardsToAdd = [draggedCard.id];
+        } else {
+          return;
+        }
+      } else {
+        if (!canAddToMeld(meld, [draggedCard])) return;
+      }
+      
+      update(addToMeld(state, viewer.id, meld.id, cardsToAdd));
+      return;
+    }
+
+    if (active.id !== over?.id && handOrder.includes(over.id as string)) {
       setHandOrder((items) => {
         const oldIndex = items.indexOf(active.id as string);
-        const newIndex = items.indexOf(over!.id as string);
+        const newIndex = items.indexOf(over.id as string);
         return arrayMove(items, oldIndex, newIndex);
       });
     }
@@ -354,34 +408,36 @@ function App() {
 
             <div className="pile">
               <span className="pile-label">Discard Pile</span>
-              {state.discard[0] ? (
-                <div style={{display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center'}}>
-                  <button 
-                    className={`playing-card ${state.discard[0].suit.toLowerCase()} ${canAct && !state.turn.drawn ? "" : "disabled"}`}
-                    onClick={() => canAct && !state.turn.drawn && update(pickUpDiscard(state))}
-                    disabled={!canAct || state.turn.drawn}
-                    style={{ width: '100px', height: '140px' }}
-                  >
-                    <div>
-                      <div className="card-value">{state.discard[0].rank === "JOKER" ? "Jkr" : state.discard[0].rank}</div>
-                      <div className="card-suit">{SUIT_SYMBOL[state.discard[0].suit]}</div>
-                    </div>
-                    <div className="card-center">{SUIT_SYMBOL[state.discard[0].suit]}</div>
-                    <div style={{ transform: "rotate(180deg)", alignSelf: "flex-end" }}>
-                      <div className="card-value">{state.discard[0].rank === "JOKER" ? "Jkr" : state.discard[0].rank}</div>
-                      <div className="card-suit">{SUIT_SYMBOL[state.discard[0].suit]}</div>
-                    </div>
-                  </button>
-                  {canAct && !state.turn.drawn && state.discard.length > 1 && (
-                    <button className="btn btn-outline" style={{fontSize: '0.9rem', padding: '8px 12px', width: 'auto'}} onClick={() => update(drawSplit(state))}>
-                      Take Top + 1 from Deck
+              <DroppableDiscard>
+                {state.discard[0] ? (
+                  <div style={{display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center'}}>
+                    <button 
+                      className={`playing-card ${state.discard[0].suit.toLowerCase()} ${canAct && !state.turn.drawn ? "" : "disabled"}`}
+                      onClick={() => canAct && !state.turn.drawn && update(pickUpDiscard(state))}
+                      disabled={!canAct || state.turn.drawn}
+                      style={{ width: '100px', height: '140px' }}
+                    >
+                      <div>
+                        <div className="card-value">{state.discard[0].rank === "JOKER" ? "Jkr" : state.discard[0].rank}</div>
+                        <div className="card-suit">{SUIT_SYMBOL[state.discard[0].suit]}</div>
+                      </div>
+                      <div className="card-center">{SUIT_SYMBOL[state.discard[0].suit]}</div>
+                      <div style={{ transform: "rotate(180deg)", alignSelf: "flex-end" }}>
+                        <div className="card-value">{state.discard[0].rank === "JOKER" ? "Jkr" : state.discard[0].rank}</div>
+                        <div className="card-suit">{SUIT_SYMBOL[state.discard[0].suit]}</div>
+                      </div>
                     </button>
-                  )}
-                  {canAct && !state.turn.drawn && state.discard.length > 0 && <div style={{color: '#059669', fontWeight: 'bold'}}>Tap card to Pick Up All</div>}
-                </div>
-              ) : (
-                <div className="empty-discard">Empty</div>
-              )}
+                    {canAct && !state.turn.drawn && state.discard.length > 1 && (
+                      <button className="btn btn-outline" style={{fontSize: '0.9rem', padding: '8px 12px', width: 'auto'}} onClick={() => update(drawSplit(state))}>
+                        Take Top + 1 from Deck
+                      </button>
+                    )}
+                    {canAct && !state.turn.drawn && state.discard.length > 0 && <div style={{color: '#059669', fontWeight: 'bold'}}>Tap card to Pick Up All</div>}
+                  </div>
+                ) : (
+                  <div className="empty-discard">Empty</div>
+                )}
+              </DroppableDiscard>
             </div>
           </section>
           </div>
@@ -436,7 +492,7 @@ function App() {
               )}
 
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                <SortableContext items={handOrder} strategy={horizontalListSortingStrategy}>
+                <SortableContext items={handOrder} strategy={rectSortingStrategy}>
                   <div className="hand-cards">
                     {orderedVisibleCards.map((card) => (
                       <SortablePlayingCard
@@ -459,27 +515,27 @@ function App() {
                   onClick={onCreateMeld} 
                   disabled={!canPlay || selected.length < 3 || !canCreateMeld(selectedCards()).ok || (viewer.footRevealed && selected.length === visibleCards.length)}
                 >
-                  Create New Basket
+                  New Basket
                 </button>
                 <button 
                   className="btn btn-secondary" 
                   onClick={onAddToMeld} 
                   disabled={!canPlay || !selectedMeld || selected.length === 0 || !canAddToMeld(viewer.melds.find(m => m.id === selectedMeld)!, selectedCards()) || (viewer.footRevealed && selected.length === visibleCards.length)}
                 >
-                  Add to Selected Basket
+                  Add to Basket
                 </button>
                 <button 
                   className="btn btn-danger" 
                   onClick={onDiscard} 
                   disabled={!mustDiscard || selected.length !== 1}
                 >
-                  Discard Selected Card to End Turn
+                  Discard
                 </button>
                 {canAct && state.turn.drawn && !viewer.hasGoneDown && state.turn.playedThisTurn.length > 0 && turnMeldPoints < 90 && (
                   <button 
                     className="btn btn-outline" 
                     onClick={onUndoBaskets}
-                    style={{color: '#ef4444', borderColor: '#ef4444'}}
+                    style={{color: '#ef4444', borderColor: '#ef4444', gridColumn: '1 / -1'}}
                   >
                     Undo Baskets (Need 90 pts)
                   </button>
