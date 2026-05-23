@@ -349,13 +349,9 @@ label {
   margin-right: -50px;
   flex-shrink: 0;
   position: relative;
-  z-index: 1;
 }
 .hand-cards > div:last-child {
   margin-right: 0;
-}
-.hand-cards > div:hover {
-  z-index: 10;
 }
 
 /* Playing Card */

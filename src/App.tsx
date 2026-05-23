@@ -55,15 +55,27 @@ function SortablePlayingCard({ card, selected, onToggle }: {
   onToggle: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id });
+  const [isHovered, setIsHovered] = useState(false);
+
+  const zIndex = isDragging ? 50 : (isHovered ? 10 : (selected ? 5 : 1));
+
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition,
+    transition: isDragging ? transition : (transition ? `${transition}, z-index 0ms 250ms` : 'z-index 0ms 250ms'),
     touchAction: 'none', // Prevent scrolling on touch devices while dragging
-    zIndex: isDragging ? 50 : (selected ? 5 : undefined),
+    zIndex,
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className={isDragging ? 'is-dragging' : ''}>
+    <div 
+      ref={setNodeRef} 
+      style={style} 
+      {...attributes} 
+      {...listeners} 
+      className={isDragging ? 'is-dragging' : ''}
+      onPointerEnter={() => setIsHovered(true)}
+      onPointerLeave={() => setIsHovered(false)}
+    >
       <PlayingCard card={card} selected={selected} onToggle={onToggle} />
     </div>
   );
