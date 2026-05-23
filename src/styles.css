@@ -327,19 +327,33 @@ label {
   align-items: center;
   margin-bottom: 10px;
   flex-shrink: 0;
+  order: 1;
 }
 .hand-header h3 { margin: 0; font-size: 1.4rem; }
 .hand-cards {
   flex: 1;
-  overflow-y: auto;
-  align-content: flex-start;
+  overflow-x: auto;
+  overflow-y: visible;
   display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
+  flex-wrap: nowrap;
+  gap: 0;
   justify-content: flex-start;
-  padding-top: 12px;
-  padding-bottom: 10px;
-  min-height: 130px;
+  padding: 20px 10px;
+  min-height: 180px;
+  order: 3;
+}
+.hand-cards > div {
+  margin-left: -50px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+  transition: transform 0.2s;
+}
+.hand-cards > div:first-child {
+  margin-left: 0;
+}
+.hand-cards > div:hover {
+  z-index: 10;
 }
 
 /* Playing Card */
@@ -391,9 +405,10 @@ label {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 10px;
-  margin-top: 10px;
+  margin-top: 0;
   margin-bottom: 10px;
   flex-shrink: 0;
+  order: 2;
 }
 
 /* Choices Overlay */
@@ -530,15 +545,23 @@ label {
   }
 
   .hand-cards {
-    justify-content: center;
+    justify-content: flex-start;
+    padding-bottom: 30px; /* Extra room for mobile touch interactions */
   }
 
   .action-bar {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  /* Make Discard button span full width if it's the 3rd button */
+  .action-bar > button.btn-danger {
+    grid-column: 1 / -1;
   }
 
   .btn {
-    padding: 12px 16px;
-    font-size: 1.1rem;
+    padding: 10px 12px;
+    font-size: 1rem;
+    margin-bottom: 0;
   }
 }
