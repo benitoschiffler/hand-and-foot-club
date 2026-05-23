@@ -14,6 +14,9 @@ import {
 import { canAddToMeld, canCreateMeld, cardLabel, cardPoints, SUIT_SYMBOL } from "./game/rules";
 import { createRoom, fetchFinishedGames, fetchRoomByCode, getSessionUser, joinRoom, recordFinishedGame, signIn, subscribeToRoom, supabase, updateRoomState } from "./lib/supabase";
 import type { Card, Difficulty, GameState, Meld } from "./types";
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 const ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -43,6 +46,25 @@ function PlayingCard({ card, selected, onToggle }: {
         <div className="card-suit">{suit}</div>
       </div>
     </button>
+  );
+}
+
+function SortablePlayingCard({ card, selected, onToggle }: {
+  card: Card;
+  selected: boolean;
+  onToggle: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: card.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    touchAction: 'none', // Prevent scrolling on touch devices while dragging
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      <PlayingCard card={card} selected={selected} onToggle={onToggle} />
+    </div>
   );
 }
 
@@ -101,6 +123,23 @@ function App() {
   const [message, setMessage] = useState("Welcome! Tap a button below to get started.");
   const [history, setHistory] = useState<Array<{ id: string; created_at: string; scores: Array<{ id: string; name: string; score: number }> }>>([]);
   const [handOrder, setHandOrder] = useState<string[]>([]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   useEffect(() => {
     void getSessionUser().then((user) => {
@@ -241,18 +280,15 @@ function App() {
     update(discardCard(state, viewer.id, selected[0]));
   }
 
-  function onMoveCard(direction: -1 | 1) {
-    if (selected.length !== 1) return;
-    const id = selected[0];
-    setHandOrder((prev) => {
-      const index = prev.indexOf(id);
-      if (index < 0) return prev;
-      const nextIndex = index + direction;
-      if (nextIndex < 0 || nextIndex >= prev.length) return prev;
-      const copy = [...prev];
-      [copy[index], copy[nextIndex]] = [copy[nextIndex], copy[index]];
-      return copy;
-    });
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (active.id !== over?.id) {
+      setHandOrder((items) => {
+        const oldIndex = items.indexOf(active.id as string);
+        const newIndex = items.indexOf(over!.id as string);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
   }
 
   function onUndoBaskets() {
@@ -398,19 +434,23 @@ function App() {
                 </div>
               )}
 
-              <div className="hand-cards">
-                {orderedVisibleCards.map((card) => (
-                  <PlayingCard
-                    key={card.id}
-                    card={card}
-                    selected={selected.includes(card.id)}
-                    onToggle={() => {
-                      setSelected((current) => current.includes(card.id) ? current.filter((id) => id !== card.id) : [...current, card.id]);
-                      setSelectedMeld(""); // Reset meld selection if cards change
-                    }}
-                  />
-                ))}
-              </div>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={handOrder} strategy={horizontalListSortingStrategy}>
+                  <div className="hand-cards">
+                    {orderedVisibleCards.map((card) => (
+                      <SortablePlayingCard
+                        key={card.id}
+                        card={card}
+                        selected={selected.includes(card.id)}
+                        onToggle={() => {
+                          setSelected((current) => current.includes(card.id) ? current.filter((id) => id !== card.id) : [...current, card.id]);
+                          setSelectedMeld(""); // Reset meld selection if cards change
+                        }}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
 
               <div className="action-bar">
                 <button 
@@ -443,24 +483,6 @@ function App() {
                     Undo Baskets (Need 90 pts)
                   </button>
                 )}
-                <div style={{display: 'flex', gap: '5px'}}>
-                  <button 
-                    className="btn btn-outline" 
-                    style={{flex: 1}}
-                    onClick={() => onMoveCard(-1)} 
-                    disabled={selected.length !== 1}
-                  >
-                    &lt; Move Left
-                  </button>
-                  <button 
-                    className="btn btn-outline" 
-                    style={{flex: 1}}
-                    onClick={() => onMoveCard(1)} 
-                    disabled={selected.length !== 1}
-                  >
-                    Move Right &gt;
-                  </button>
-                </div>
               </div>
             </section>
             </>

@@ -468,3 +468,77 @@ label {
   margin-top: 20px;
   border: 2px solid #fde68a;
 }
+
+/* Mobile Adjustments */
+@media (max-width: 768px) {
+  body {
+    overflow-y: auto;
+  }
+  
+  .table-shell {
+    height: auto;
+    min-height: 100vh;
+    overflow-y: auto;
+  }
+
+  .table-felt {
+    flex-direction: column;
+    padding: 10px;
+    gap: 15px;
+    overflow-y: visible;
+  }
+
+  .table-left-column {
+    flex: none;
+    padding-right: 0;
+  }
+
+  /* Hide opponent area on mobile */
+  .opponent-area {
+    display: none;
+  }
+
+  .table-right-column {
+    flex: none;
+    overflow: visible;
+  }
+
+  /* Center piles horizontal on mobile */
+  .center-area {
+    flex-direction: row;
+    justify-content: space-around;
+  }
+  
+  .deck-card, .empty-discard, .playing-card {
+    /* Scale down slightly to fit on screen */
+    transform: scale(0.9);
+    transform-origin: top center;
+  }
+
+  .deck-card:hover:not(.disabled), .playing-card:hover {
+    transform: scale(0.9) translateY(-4px);
+  }
+
+  .playing-card.selected {
+    transform: scale(0.9) translateY(-8px);
+  }
+
+  .hand-area {
+    border-radius: 16px;
+    padding: 10px;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+  }
+
+  .hand-cards {
+    justify-content: center;
+  }
+
+  .action-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .btn {
+    padding: 12px 16px;
+    font-size: 1.1rem;
+  }
+}
