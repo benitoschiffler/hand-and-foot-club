@@ -71,4 +71,5 @@ export interface GameState {
   turn: TurnState;
   winnerId?: string;
   lastAction: string;
+  actionLog?: string[];
 }

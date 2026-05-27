@@ -107,7 +107,7 @@ export function detectMeldType(cards: Card[]): "set" | "run" | null {
   return null;
 }
 
-export function canCreateMeld(cards: Card[]) {
+export function canCreateMeld(cards: Card[], existingMelds?: Meld[]) {
   const type = detectMeldType(cards);
   if (!type) {
     return { ok: false, reason: "Meld must be a set or same-suit run with at least 3 cards." };
@@ -119,6 +119,21 @@ export function canCreateMeld(cards: Card[]) {
   if (points < 15) {
     return { ok: false, reason: "Each new meld must be worth at least 15 points." };
   }
+  
+  if (existingMelds && existingMelds.length > 0) {
+     if (type === "set") {
+       const firstNatural = cards.find(c => !isWild(c));
+       if (firstNatural && existingMelds.some(m => m.type === "set" && m.rank === firstNatural.rank)) {
+         return { ok: false, reason: `You already have a basket of ${firstNatural.rank}s. Add to it instead.` };
+       }
+     } else if (type === "run") {
+       const firstNatural = cards.find(c => !isWild(c));
+       if (firstNatural && existingMelds.some(m => m.type === "run" && m.suit === firstNatural.suit)) {
+         return { ok: false, reason: `You already have a run of ${firstNatural.suit}. Add to it instead.` };
+       }
+     }
+  }
+
   return { ok: true, type, points };
 }
 

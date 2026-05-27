@@ -100,6 +100,7 @@ export function createGame(mode: "cpu" | "online", deckCount: number, players: A
       playedThisTurn: [],
     },
     lastAction: "Game created",
+    actionLog: ["Game created"],
   };
 }
 
@@ -236,7 +237,7 @@ export function createMeld(state: GameState, playerId: string, cardIds: string[]
     if (!cards.length) {
       return;
     }
-    const verdict = canCreateMeld(cards);
+    const verdict = canCreateMeld(cards, player.melds);
     if (!verdict.ok) {
       restoreCards(player, cards);
       draft.lastAction = (verdict as { reason?: string }).reason ?? "Invalid meld.";
@@ -397,7 +398,12 @@ function restoreCards(player: PlayerState, cards: Card[]) {
 
 function mutate(state: GameState, fn: (draft: GameState) => void) {
   const draft = structuredClone(state);
+  const prevAction = draft.lastAction;
   fn(draft);
+  if (draft.lastAction !== prevAction) {
+    if (!draft.actionLog) draft.actionLog = [];
+    draft.actionLog.push(draft.lastAction);
+  }
   return draft;
 }
 
@@ -492,10 +498,10 @@ export function runCpuTurn(state: GameState) {
   const active = activeCards(draft.players[draft.currentPlayer]);
   const alreadyDown = draft.players[draft.currentPlayer].hasGoneDown;
   const availableMeldPoints = rankBucket(active)
-    .filter((b) => b.length >= 3 && canCreateMeld(b.slice(0, 3)).ok)
+    .filter((b) => b.length >= 3 && canCreateMeld(b.slice(0, 3), draft.players[draft.currentPlayer].melds).ok)
     .reduce((sum, b) => sum + b.slice(0, 3).reduce((s, c) => s + cardPoints(c), 0), 0) +
     suitRuns(active)
-      .filter((r) => r.length >= 3 && canCreateMeld(r.slice(0, 3)).ok)
+      .filter((r) => r.length >= 3 && canCreateMeld(r.slice(0, 3), draft.players[draft.currentPlayer].melds).ok)
       .reduce((sum, r) => sum + r.slice(0, 3).reduce((s, c) => s + cardPoints(c), 0), 0);
 
   if (alreadyDown || availableMeldPoints >= 90) {
@@ -504,13 +510,13 @@ export function runCpuTurn(state: GameState) {
       playedSomething = false;
       const currentActive = activeCards(draft.players[draft.currentPlayer]);
       const sets = rankBucket(currentActive).filter((bucket) => bucket.length >= 3);
-      const candidateSet = sets.find((bucket) => canCreateMeld(bucket.slice(0, 3)).ok);
+      const candidateSet = sets.find((bucket) => canCreateMeld(bucket.slice(0, 3), draft.players[draft.currentPlayer].melds).ok);
       if (candidateSet) {
         draft = createMeld(draft, player.id, candidateSet.slice(0, Math.min(candidateSet.length, 4)).map((card) => card.id));
         playedSomething = true;
       } else {
         const runs = suitRuns(currentActive);
-        const run = runs.find((bucket) => canCreateMeld(bucket.slice(0, 3)).ok);
+        const run = runs.find((bucket) => canCreateMeld(bucket.slice(0, 3), draft.players[draft.currentPlayer].melds).ok);
         if (run) {
           draft = createMeld(draft, player.id, run.slice(0, 3).map((card) => card.id));
           playedSomething = true;

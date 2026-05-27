@@ -368,6 +368,27 @@ function App() {
     setMessage(`Check your email! We sent a login link to ${email}.`);
   }
 
+  function downloadDebugLogs() {
+    if (!state) return;
+    const logContent = `Hand and Foot Game Logs
+Room Code: ${state.roomCode || 'N/A'}
+Mode: ${state.mode}
+ID: ${state.id}
+
+--- Action Log ---
+${state.actionLog ? state.actionLog.join('\n') : 'No actions yet.'}
+
+--- Full State ---
+${JSON.stringify(state, null, 2)}`;
+    const dataStr = "data:text/plain;charset=utf-8," + encodeURIComponent(logContent);
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", `hand_and_foot_debug_${state.id}.txt`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+  }
+
   const canAct = Boolean(state && currentPlayer && viewer && currentPlayer.id === viewer.id && !viewer.isCpu && !state.winnerId);
   const activeHandLabel = viewer?.hand.length ? "Your Hand" : "Your Foot";
   const opponents = state ? state.players.filter((player) => player.id !== viewer?.id) : [];
@@ -375,6 +396,31 @@ function App() {
   const canDiscard = !state?.turn.playedThisTurn.length || viewer?.hasGoneDown || turnMeldPoints >= 90;
   const mustDiscard = Boolean(canAct && state?.turn.drawn && viewer?.chosenHand && canDiscard);
   const canPlay = Boolean(canAct && state?.turn.drawn && viewer?.chosenHand);
+
+  let newBasketTooltip = "";
+  if (!canPlay) newBasketTooltip = "You must draw cards first.";
+  else if (selected.length < 3) newBasketTooltip = "Select at least 3 cards to make a basket.";
+  else if (viewer && viewer.footRevealed && selected.length === visibleCards.length) newBasketTooltip = "You must keep one card to discard to go out.";
+  else if (viewer) {
+    const verdict = canCreateMeld(selectedCards(), viewer.melds);
+    if (!verdict.ok) newBasketTooltip = verdict.reason || "Invalid basket.";
+  }
+
+  let addToBasketTooltip = "";
+  if (!canPlay) addToBasketTooltip = "You must draw cards first.";
+  else if (!selectedMeld) addToBasketTooltip = "Click on an existing basket first to select it.";
+  else if (selected.length === 0) addToBasketTooltip = "Select cards from your hand to add.";
+  else if (viewer && viewer.footRevealed && selected.length === visibleCards.length) addToBasketTooltip = "You must keep one card to discard to go out.";
+  else if (viewer) {
+    const meld = viewer.melds.find(m => m.id === selectedMeld);
+    if (meld && !canAddToMeld(meld, selectedCards())) addToBasketTooltip = "Those cards cannot be added to the selected basket.";
+  }
+
+  let discardTooltip = "";
+  if (!canAct) discardTooltip = "It's not your turn.";
+  else if (!state?.turn.drawn) discardTooltip = "You must draw cards first.";
+  else if (selected.length !== 1) discardTooltip = "Select exactly one card to discard.";
+  else if (viewer && !viewer.hasGoneDown && turnMeldPoints > 0 && turnMeldPoints < 90) discardTooltip = "You cannot end the turn until your first melds total 90 points.";
 
   if (state && currentPlayer && viewer) {
     return (
@@ -385,7 +431,14 @@ function App() {
             {state.winnerId ? "Game Over!" : canAct ? "Your Turn" : `Waiting for ${currentPlayer.name}...`}
           </div>
           {state.roomCode && <div>Room Code: <strong>{state.roomCode}</strong></div>}
+          <button className="btn btn-outline" style={{fontSize: '0.8rem', padding: '4px 8px', marginLeft: 'auto'}} onClick={downloadDebugLogs}>Bug / Debug Logs</button>
         </header>
+
+        {state.lastAction && (
+          <div style={{ backgroundColor: '#fef3c7', padding: '8px 16px', textAlign: 'center', fontWeight: 'bold', color: '#92400e', borderBottom: '1px solid #fde68a' }}>
+            {state.lastAction}
+          </div>
+        )}
 
         <main className="table-felt">
           <div className="table-left-column">
@@ -525,21 +578,24 @@ function App() {
                 <button 
                   className="btn btn-secondary" 
                   onClick={onCreateMeld} 
-                  disabled={!canPlay || selected.length < 3 || !canCreateMeld(selectedCards()).ok || (viewer.footRevealed && selected.length === visibleCards.length)}
+                  disabled={!!newBasketTooltip}
+                  title={newBasketTooltip}
                 >
                   New Basket
                 </button>
                 <button 
                   className="btn btn-secondary" 
                   onClick={onAddToMeld} 
-                  disabled={!canPlay || !selectedMeld || selected.length === 0 || !canAddToMeld(viewer.melds.find(m => m.id === selectedMeld)!, selectedCards()) || (viewer.footRevealed && selected.length === visibleCards.length)}
+                  disabled={!!addToBasketTooltip}
+                  title={addToBasketTooltip}
                 >
                   Add to Basket
                 </button>
                 <button 
                   className="btn btn-danger" 
                   onClick={onDiscard} 
-                  disabled={!mustDiscard || selected.length !== 1}
+                  disabled={!!discardTooltip}
+                  title={discardTooltip}
                 >
                   Discard
                 </button>
