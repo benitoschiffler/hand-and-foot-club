@@ -378,6 +378,10 @@ ID: ${state.id}
 --- Action Log ---
 ${state.actionLog ? state.actionLog.join('\n') : 'No actions yet.'}
 
+--- UI State ---
+Selected Cards: ${JSON.stringify(selected)}
+Selected Meld: ${selectedMeld || 'None'}
+
 --- Full State ---
 ${JSON.stringify(state, null, 2)}`;
     const dataStr = "data:text/plain;charset=utf-8," + encodeURIComponent(logContent);

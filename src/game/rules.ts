@@ -36,7 +36,7 @@ export function cardPoints(card: Card) {
   if (card.rank === "3") {
     return card.suit === "hearts" || card.suit === "diamonds" ? 300 : 15;
   }
-  if (["J", "Q", "K", "10"].includes(card.rank)) {
+  if (["10", "J", "Q", "K"].includes(card.rank)) {
     return 10;
   }
   return 5;
@@ -110,7 +110,7 @@ export function detectMeldType(cards: Card[]): "set" | "run" | null {
 export function canCreateMeld(cards: Card[], existingMelds?: Meld[]) {
   const type = detectMeldType(cards);
   if (!type) {
-    return { ok: false, reason: "Meld must be a set or same-suit run with at least 3 cards." };
+    return { ok: false, reason: "A basket must contain cards of the same rank (with at least 3 cards). Please select and create one basket at a time." };
   }
   if (cards.filter(isNaturalForMeld).length < 2) {
     return { ok: false, reason: "A new meld needs at least two natural cards." };
@@ -123,13 +123,15 @@ export function canCreateMeld(cards: Card[], existingMelds?: Meld[]) {
   if (existingMelds && existingMelds.length > 0) {
      if (type === "set") {
        const firstNatural = cards.find(c => !isWild(c));
-       if (firstNatural && existingMelds.some(m => m.type === "set" && m.rank === firstNatural.rank)) {
-         return { ok: false, reason: `You already have a basket of ${firstNatural.rank}s. Add to it instead.` };
+       const isClean = !cards.some(isWild);
+       if (firstNatural && existingMelds.some(m => m.type === "set" && m.rank === firstNatural.rank && (!m.cards.some(isWild) === isClean))) {
+         return { ok: false, reason: `You already have a ${isClean ? "clean" : "dirty"} basket of ${firstNatural.rank}s. Add to it instead.` };
        }
      } else if (type === "run") {
        const firstNatural = cards.find(c => !isWild(c));
-       if (firstNatural && existingMelds.some(m => m.type === "run" && m.suit === firstNatural.suit)) {
-         return { ok: false, reason: `You already have a run of ${firstNatural.suit}. Add to it instead.` };
+       const isClean = !cards.some(isWild);
+       if (firstNatural && existingMelds.some(m => m.type === "run" && m.suit === firstNatural.suit && (!m.cards.some(isWild) === isClean))) {
+         return { ok: false, reason: `You already have a ${isClean ? "clean" : "dirty"} run of ${firstNatural.suit}. Add to it instead.` };
        }
      }
   }
