@@ -341,6 +341,7 @@ label {
   flex-wrap: wrap;
   gap: 15px 0;
   justify-content: flex-start;
+  align-items: flex-start;
   padding: 20px 10px;
   min-height: 180px;
   order: 3;
