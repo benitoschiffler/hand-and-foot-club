@@ -57,7 +57,7 @@ function SortablePlayingCard({ card, selected, onToggle }: {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id });
   const [isHovered, setIsHovered] = useState(false);
 
-  const zIndex = isDragging ? 50 : (isHovered ? 10 : (selected ? 5 : 1));
+  const zIndex = isDragging ? 50 : 1;
 
   const style = {
     transform: CSS.Transform.toString(transform),
