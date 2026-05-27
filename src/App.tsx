@@ -431,7 +431,16 @@ ${JSON.stringify(state, null, 2)}`;
             {state.winnerId ? "Game Over!" : canAct ? "Your Turn" : `Waiting for ${currentPlayer.name}...`}
           </div>
           {state.roomCode && <div>Room Code: <strong>{state.roomCode}</strong></div>}
-          <button className="btn btn-outline" style={{fontSize: '0.8rem', padding: '4px 8px', marginLeft: 'auto'}} onClick={downloadDebugLogs}>Bug / Debug Logs</button>
+          <button 
+            className="btn btn-outline" 
+            style={{ padding: '8px', marginLeft: 'auto', borderRadius: '50%', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none' }} 
+            onClick={downloadDebugLogs}
+            title="Download Debug Logs"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 2v4"/><path d="M16 2v4"/><rect width="16" height="14" x="4" y="8" rx="2"/><path d="M12 11v6"/><path d="M8 14h8"/><path d="M4 14H2"/><path d="M22 14h-2"/><path d="M4 10H2"/><path d="M22 10h-2"/><path d="M4 18H2"/><path d="M22 18h-2"/>
+            </svg>
+          </button>
         </header>
 
         {state.lastAction && (
