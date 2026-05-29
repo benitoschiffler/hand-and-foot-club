@@ -453,7 +453,8 @@ ${JSON.stringify(state, null, 2)}`;
           </div>
         )}
 
-        <main className="table-felt">
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <main className="table-felt">
           <div className="table-left-column">
             <section className="opponent-area">
             {opponents.map((player) => (
@@ -569,7 +570,7 @@ ${JSON.stringify(state, null, 2)}`;
                 </div>
               )}
 
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <div className="hand-cards-dnd-wrapper">
                 <SortableContext items={handOrder} strategy={rectSortingStrategy}>
                   <div className="hand-cards">
                     {orderedVisibleCards.map((card) => (
@@ -579,13 +580,12 @@ ${JSON.stringify(state, null, 2)}`;
                         selected={selected.includes(card.id)}
                         onToggle={() => {
                           setSelected((current) => current.includes(card.id) ? current.filter((id) => id !== card.id) : [...current, card.id]);
-                          setSelectedMeld(""); // Reset meld selection if cards change
                         }}
                       />
                     ))}
                   </div>
                 </SortableContext>
-              </DndContext>
+              </div>
 
               <div className="action-bar">
                 <button 
@@ -626,7 +626,8 @@ ${JSON.stringify(state, null, 2)}`;
             </>
           )}
           </div>
-        </main>
+          </main>
+        </DndContext>
       </div>
     );
   }
