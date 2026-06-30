@@ -11,6 +11,7 @@ import {
   runCpuTurn,
   undoMeldsThisTurn,
 } from "./game/engine";
+import { VictoryCelebration } from "./VictoryCelebration";
 import { canAddToMeld, canCreateMeld, cardLabel, cardPoints, SUIT_SYMBOL } from "./game/rules";
 import { createRoom, fetchFinishedGames, fetchRoomByCode, getSessionUser, joinRoom, recordFinishedGame, signIn, subscribeToRoom, supabase, updateRoomState } from "./lib/supabase";
 import type { Card, Difficulty, GameState, Meld } from "./types";
@@ -427,8 +428,17 @@ ${JSON.stringify(state, null, 2)}`;
   else if (viewer && !viewer.hasGoneDown && turnMeldPoints > 0 && turnMeldPoints < 90) discardTooltip = "You cannot end the turn until your first melds total 90 points.";
 
   if (state && currentPlayer && viewer) {
+    const isWinner = state.winnerId === viewer.id;
     return (
       <div className="table-shell">
+        {isWinner && <VictoryCelebration />}
+        <button 
+          className="btn btn-outline" 
+          style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 10000, width: 'auto', padding: '10px 15px', backgroundColor: 'white' }} 
+          onClick={() => setState(prev => prev ? { ...prev, winnerId: viewer.id } : prev)}
+        >
+          Debug Win
+        </button>
         <header className="table-header">
           <h2>Hand and Foot</h2>
           <div className={`turn-indicator ${canAct ? "is-you" : ""}`}>
@@ -646,6 +656,7 @@ ${JSON.stringify(state, null, 2)}`;
           <h2>Play against Computer</h2>
           <button className="btn" onClick={() => startCpuGame("easy")}>Play (Easy)</button>
           <button className="btn btn-outline" onClick={() => startCpuGame("medium")}>Play (Medium)</button>
+          <button className="btn btn-hard" onClick={() => startCpuGame("hard")}>Play (Hard)</button>
         </div>
 
         <div className="panel">

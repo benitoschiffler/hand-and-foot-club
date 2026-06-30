@@ -79,6 +79,14 @@ p { font-size: 1.1rem; color: #4b5563; margin-bottom: 20px; }
 .btn-danger:hover:not(:disabled) {
   background-color: #dc2626;
 }
+.btn-hard {
+  background-color: #ea580c;
+  box-shadow: 0 4px 6px -1px rgba(234, 88, 12, 0.2);
+}
+.btn-hard:hover:not(:disabled) {
+  background-color: #c2410c;
+  transform: translateY(-2px);
+}
 
 /* Inputs */
 input {

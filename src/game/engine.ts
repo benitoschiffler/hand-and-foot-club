@@ -1,5 +1,5 @@
 import type { Card, Difficulty, GameState, Meld, PlayerState } from "../types";
-import { canAddToMeld, canCreateMeld, cardLabel, cardPoints, detectMeldType, isBadThree, isWild, sortCardsForDisplay } from "./rules";
+import { canAddToMeld, canCreateMeld, cardLabel, cardPoints, detectMeldType, isBadThree, isNaturalForMeld, isWild, sortCardsForDisplay } from "./rules";
 
 const SUITS = ["clubs", "diamonds", "hearts", "spades"] as const;
 const RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"] as const;
@@ -453,12 +453,93 @@ function opponentMeldRuns(state: GameState, playerId: string) {
 }
 
 function chooseDiscardAware(cards: Card[], difficulty: Difficulty, opponentRanks: string[], opponentSuits: string[]) {
+  // Always discard bad threes first, starting with the highest penalty (red threes)
+  const badThrees = cards.filter(isBadThree).sort((a, b) => cardPoints(b) - cardPoints(a));
+  if (badThrees.length > 0) {
+    return badThrees[0];
+  }
+
   const sorted = [...cards].sort((a, b) => cardPoints(a) - cardPoints(b));
   // Hard: prefer discarding cards that don't match opponent melds
   const safeDiscard = sorted.find(
     (card) => !isWild(card) && !isBadThree(card) && !opponentRanks.includes(card.rank) && !opponentSuits.includes(card.suit),
   );
   return safeDiscard ?? chooseDiscardForDifficulty(cards, difficulty);
+}
+
+function shouldCpuPickUpDiscard(draft: GameState, player: PlayerState): boolean {
+  if (!draft.discard.length) return false;
+  const topDiscard = draft.discard[0];
+  const active = activeCards(player);
+
+  // If in foot and have very few cards, we want to go out, so don't pick up discard unless it fits
+  if (player.footRevealed && active.length <= 4) {
+    return player.melds.some((meld) => canAddToMeld(meld, [topDiscard]));
+  }
+
+  // 1. Fits existing meld
+  if (player.melds.some((meld) => canAddToMeld(meld, [topDiscard]))) {
+    return true;
+  }
+
+  // 2. Can form a new set with cards in hand
+  if (isNaturalForMeld(topDiscard)) {
+    const handSameRank = active.filter((c) => c.rank === topDiscard.rank);
+    const wilds = active.filter(isWild);
+    if (handSameRank.length >= 2 || (handSameRank.length >= 1 && wilds.length >= 1)) {
+      return true;
+    }
+  }
+
+  // 3. Large discard pile is great for points and options if we haven't gone down yet
+  if (draft.discard.length >= 4 && !player.hasGoneDown) {
+    return true;
+  }
+
+  return false;
+}
+
+function findPossibleSetsForHardMode(active: Card[], existingMelds: Meld[]) {
+  const possibleMelds: Card[][] = [];
+  const naturals = active.filter(isNaturalForMeld);
+  const wilds = [...active.filter(isWild)];
+
+  // Group natural cards by rank
+  const naturalByRank = new Map<string, Card[]>();
+  for (const card of naturals) {
+    const list = naturalByRank.get(card.rank) ?? [];
+    list.push(card);
+    naturalByRank.set(card.rank, list);
+  }
+
+  // Iterate over each rank and try to form sets
+  for (const [rank, cards] of naturalByRank.entries()) {
+    // 1. Can we form a clean set of length >= 3?
+    if (cards.length >= 3) {
+      const hasCleanSet = existingMelds.some(
+        (m) => m.type === "set" && m.rank === rank && !m.cards.some(isWild),
+      );
+      if (!hasCleanSet) {
+        possibleMelds.push([...cards]);
+        continue;
+      }
+    }
+
+    // 2. Can we form a dirty set? (at least 2 naturals + wild cards)
+    if (cards.length >= 2 && wilds.length >= 1) {
+      const hasDirtySet = existingMelds.some(
+        (m) => m.type === "set" && m.rank === rank && m.cards.some(isWild),
+      );
+      if (!hasDirtySet) {
+        const dirtyMeld = [...cards];
+        const wild = wilds.shift()!;
+        dirtyMeld.push(wild);
+        possibleMelds.push(dirtyMeld);
+      }
+    }
+  }
+
+  return { possibleMelds, remainingWilds: wilds };
 }
 
 export function runCpuTurn(state: GameState) {
@@ -476,14 +557,19 @@ export function runCpuTurn(state: GameState) {
   }
 
   const difficulty = player.difficulty ?? "easy";
-
-  // Medium/hard: pick up the discard pile if the top card fits an existing meld
-  // Medium/hard: pick up the discard pile if it has good cards, or always?
-  // Wait, the rules say you can pick up discard anytime. Let's have CPU randomly do it sometimes, or if it fits melds.
   const topDiscard = draft.discard[0];
   const currentMelds = draft.players[draft.currentPlayer].melds;
   const discardFitsExistingMeld = topDiscard && currentMelds.some((meld) => canAddToMeld(meld, [topDiscard]));
-  if (difficulty !== "easy" && discardFitsExistingMeld) {
+
+  // Pick up discard check
+  let shouldPickUp = false;
+  if (difficulty === "hard") {
+    shouldPickUp = shouldCpuPickUpDiscard(draft, player);
+  } else if (difficulty === "medium" && discardFitsExistingMeld) {
+    shouldPickUp = true;
+  }
+
+  if (shouldPickUp) {
     const attempt = pickUpDiscard(draft);
     draft = attempt.turn.drawn ? attempt : drawFromStock(draft);
   } else {
@@ -494,48 +580,83 @@ export function runCpuTurn(state: GameState) {
     return draft;
   }
 
-  // Only create new melds if already down, or if meld points this turn can reach 90
   const active = activeCards(draft.players[draft.currentPlayer]);
   const alreadyDown = draft.players[draft.currentPlayer].hasGoneDown;
-  const availableMeldPoints = rankBucket(active)
-    .filter((b) => b.length >= 3 && canCreateMeld(b.slice(0, 3), draft.players[draft.currentPlayer].melds).ok)
-    .reduce((sum, b) => sum + b.slice(0, 3).reduce((s, c) => s + cardPoints(c), 0), 0) +
-    suitRuns(active)
-      .filter((r) => r.length >= 3 && canCreateMeld(r.slice(0, 3), draft.players[draft.currentPlayer].melds).ok)
-      .reduce((sum, r) => sum + r.slice(0, 3).reduce((s, c) => s + cardPoints(c), 0), 0);
 
-  if (alreadyDown || availableMeldPoints >= 90) {
-    let playedSomething = true;
-    while (playedSomething) {
-      playedSomething = false;
-      const currentActive = activeCards(draft.players[draft.currentPlayer]);
-      const sets = rankBucket(currentActive).filter((bucket) => bucket.length >= 3);
-      const candidateSet = sets.find((bucket) => canCreateMeld(bucket.slice(0, 3), draft.players[draft.currentPlayer].melds).ok);
-      if (candidateSet) {
-        draft = createMeld(draft, player.id, candidateSet.slice(0, Math.min(candidateSet.length, 4)).map((card) => card.id));
-        playedSomething = true;
-      } else {
-        const runs = suitRuns(currentActive);
-        const run = runs.find((bucket) => canCreateMeld(bucket.slice(0, 3), draft.players[draft.currentPlayer].melds).ok);
-        if (run) {
-          draft = createMeld(draft, player.id, run.slice(0, 3).map((card) => card.id));
-          playedSomething = true;
-        }
+  if (difficulty === "hard") {
+    // Hard Difficulty Melding Logic
+    const { possibleMelds } = findPossibleSetsForHardMode(active, draft.players[draft.currentPlayer].melds);
+    const newMeldsPoints = possibleMelds.reduce((sum, meld) => sum + meld.reduce((s, c) => s + cardPoints(c), 0), 0);
+
+    if (alreadyDown || newMeldsPoints >= 90) {
+      // Play all possible new sets
+      for (const meld of possibleMelds) {
+        draft = createMeld(draft, player.id, meld.map((card) => card.id));
       }
     }
-  }
 
-  // Medium/hard: add to existing melds, but only once down to avoid getting stuck on the 90-point rule
-  if (difficulty !== "easy" && draft.players[draft.currentPlayer].hasGoneDown) {
-    for (const meld of draft.players[draft.currentPlayer].melds) {
+    // Now, add any addable cards to existing and new melds
+    if (draft.players[draft.currentPlayer].hasGoneDown) {
       let addedSomething = true;
       while (addedSomething) {
         addedSomething = false;
         const currentCards = activeCards(draft.players[draft.currentPlayer]);
-        const addable = currentCards.filter((card) => canAddToMeld(meld, [card]));
-        if (addable.length) {
-          draft = addToMeld(draft, player.id, meld.id, [addable[0].id]);
-          addedSomething = true;
+        for (const meld of draft.players[draft.currentPlayer].melds) {
+          // If we are in foot and have exactly 1 card, we must keep it for discard to go out.
+          if (draft.players[draft.currentPlayer].footRevealed && currentCards.length === 1) {
+            break;
+          }
+          const addable = currentCards.find((card) => canAddToMeld(meld, [card]));
+          if (addable) {
+            draft = addToMeld(draft, player.id, meld.id, [addable.id]);
+            addedSomething = true;
+            break; // refresh card list
+          }
+        }
+      }
+    }
+  } else {
+    // Easy and Medium Melding Logic
+    const availableMeldPoints = rankBucket(active)
+      .filter((b) => b.length >= 3 && canCreateMeld(b.slice(0, 3), draft.players[draft.currentPlayer].melds).ok)
+      .reduce((sum, b) => sum + b.slice(0, 3).reduce((s, c) => s + cardPoints(c), 0), 0) +
+      suitRuns(active)
+        .filter((r) => r.length >= 3 && canCreateMeld(r.slice(0, 3), draft.players[draft.currentPlayer].melds).ok)
+        .reduce((sum, r) => sum + r.slice(0, 3).reduce((s, c) => s + cardPoints(c), 0), 0);
+
+    if (alreadyDown || availableMeldPoints >= 90) {
+      let playedSomething = true;
+      while (playedSomething) {
+        playedSomething = false;
+        const currentActive = activeCards(draft.players[draft.currentPlayer]);
+        const sets = rankBucket(currentActive).filter((bucket) => bucket.length >= 3);
+        const candidateSet = sets.find((bucket) => canCreateMeld(bucket.slice(0, 3), draft.players[draft.currentPlayer].melds).ok);
+        if (candidateSet) {
+          draft = createMeld(draft, player.id, candidateSet.slice(0, Math.min(candidateSet.length, 4)).map((card) => card.id));
+          playedSomething = true;
+        } else {
+          const runs = suitRuns(currentActive);
+          const run = runs.find((bucket) => canCreateMeld(bucket.slice(0, 3), draft.players[draft.currentPlayer].melds).ok);
+          if (run) {
+            draft = createMeld(draft, player.id, run.slice(0, 3).map((card) => card.id));
+            playedSomething = true;
+          }
+        }
+      }
+    }
+
+    // Medium: add to existing melds, but only once down to avoid getting stuck on the 90-point rule
+    if (difficulty === "medium" && draft.players[draft.currentPlayer].hasGoneDown) {
+      for (const meld of draft.players[draft.currentPlayer].melds) {
+        let addedSomething = true;
+        while (addedSomething) {
+          addedSomething = false;
+          const currentCards = activeCards(draft.players[draft.currentPlayer]);
+          const addable = currentCards.filter((card) => canAddToMeld(meld, [card]));
+          if (addable.length) {
+            draft = addToMeld(draft, player.id, meld.id, [addable[0].id]);
+            addedSomething = true;
+          }
         }
       }
     }
