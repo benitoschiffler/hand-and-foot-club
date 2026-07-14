@@ -275,12 +275,18 @@ label {
   border: 3px solid #e5e7eb;
   border-radius: 12px;
   padding: 12px;
-  cursor: pointer;
   transition: all 0.2s;
   min-width: 150px;
 }
 .meld-stack:hover {
   z-index: 5;
+}
+.meld-stack.selectable {
+  cursor: pointer;
+}
+.meld-stack.selectable:hover {
+  border-color: #9ca3af;
+  background: #f3f4f6;
 }
 .meld-stack.selected {
   border-color: #3b82f6;

@@ -326,6 +326,7 @@ function App() {
     }
 
     if (String(over.id).startsWith('meld-')) {
+      if (!canPlay) return;
       const meldId = String(over.id).replace('meld-', '');
       const meld = viewer.melds.find((m) => m.id === meldId);
       if (!meld) return;
@@ -557,9 +558,9 @@ ${JSON.stringify(state, null, 2)}`;
                     <MeldStack
                       key={meld.id}
                       meld={meld}
-                      selectable={canPlay && selected.length > 0}
+                      selectable={canPlay}
                       selected={selectedMeld === meld.id}
-                      onSelect={() => setSelectedMeld(meld.id)}
+                      onSelect={() => setSelectedMeld((current) => current === meld.id ? "" : meld.id)}
                     />
                   ))}
                 </div>

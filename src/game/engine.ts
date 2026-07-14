@@ -170,6 +170,7 @@ export function drawFromStock(state: GameState) {
       finishGame(draft, "");
       return;
     }
+    draft.turn.startedTurnInFoot = player.footRevealed;
     const destination = activeCards(player);
     destination.push(...draft.stock.splice(0, 2));
     setActiveCards(player, destination);
@@ -185,6 +186,7 @@ export function pickUpDiscard(state: GameState) {
     if (!player.chosenHand || draft.turn.drawn || !draft.discard.length) {
       return;
     }
+    draft.turn.startedTurnInFoot = player.footRevealed;
     const originalDiscardCount = draft.discard.length;
     const destination = activeCards(player);
     destination.push(...draft.discard.splice(0));
@@ -217,6 +219,7 @@ export function drawSplit(state: GameState) {
       finishGame(draft, "");
       return;
     }
+    draft.turn.startedTurnInFoot = player.footRevealed;
     const destination = activeCards(player);
     destination.push(...draft.discard.splice(0, 1)); // top of discard
     destination.push(...draft.stock.splice(0, 1)); // 1 from stock
@@ -285,7 +288,16 @@ export function undoMeldsThisTurn(state: GameState, playerId: string) {
     });
 
     player.melds = player.melds.filter(meld => meld.cards.length >= 3);
-    player.hand.push(...draft.turn.playedThisTurn);
+    
+    const startedInFoot = draft.turn.startedTurnInFoot ?? player.footRevealed;
+    if (startedInFoot) {
+      player.foot.push(...draft.turn.playedThisTurn);
+      player.foot = sortCardsForDisplay(player.foot);
+    } else {
+      player.hand.push(...draft.turn.playedThisTurn);
+      player.hand = sortCardsForDisplay(player.hand);
+      player.footRevealed = false;
+    }
 
     if (player.melds.length === 0) {
       player.hasGoneDown = false;

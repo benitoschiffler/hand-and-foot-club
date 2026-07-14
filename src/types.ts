@@ -56,6 +56,7 @@ export interface TurnState {
   source: "stock" | "discard" | "split" | null;
   pickedDiscard: boolean;
   playedThisTurn: Card[];
+  startedTurnInFoot?: boolean;
 }
 
 export interface GameState {
