@@ -5,7 +5,10 @@ Browser game for your custom Hand and Foot ruleset, with:
 - Online room play through Supabase
 - Local play against CPU (`easy`, `medium`, `hard`)
 - Email magic-link login
-- All-time score tracking hooks
+- Recent score history
+- Installable mobile web app support
+- Automatic game recovery after refresh or reopening
+- One-tap problem reports that can be shared from a phone
 
 ## Run
 
@@ -18,11 +21,21 @@ npm run dev
 
 1. Create a Supabase project.
 2. Copy `.env.example` to `.env.local` and fill in the URL and anon key.
-3. Run the SQL in [`supabase/schema.sql`](./supabase/schema.sql).
+3. Run the SQL in [`supabase/schema.sql`](./supabase/schema.sql). It creates isolated `hand_foot_*` tables, room-member policies, and the secure room-join function.
 4. In Supabase Auth, enable Email OTP / magic links.
 5. In Supabase Auth URL configuration, allow both your Vercel app URL and `http://localhost:5173`.
 
 Without Supabase env vars, the app still runs in local-only mode for CPU play and rules testing.
+
+## Install on a phone
+
+- On iPhone or iPad, open the site in Safari, tap **Share**, then **Add to Home Screen**.
+- On supported Android browsers, tap **Save to Phone** and accept the install prompt.
+- CPU games cache the app shell and are restored from the device. Online rooms still require a connection.
+
+## Support reports
+
+The **Report a Problem** button creates a text report containing the app version, device details, recent actions, and full game state. Phones open the native Share sheet when supported; other browsers download the `.txt` file. Authentication tokens and Supabase keys are not included.
 
 ## New Computer Setup
 

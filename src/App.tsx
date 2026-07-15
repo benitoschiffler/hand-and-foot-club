@@ -12,30 +12,32 @@ import {
   undoMeldsThisTurn,
 } from "./game/engine";
 import { VictoryCelebration } from "./VictoryCelebration";
+import { GameHistory } from "./components/GameHistory";
+import { InstallHelp } from "./components/InstallHelp";
 import { canAddToMeld, canCreateMeld, cardLabel, cardPoints, SUIT_SYMBOL } from "./game/rules";
-import { createRoom, fetchFinishedGames, fetchRoomByCode, getSessionUser, joinRoom, recordFinishedGame, signIn, subscribeToRoom, supabase, updateRoomState } from "./lib/supabase";
+import { clearGameSession, loadGameSession, saveGameSession, type SavedGameSession } from "./lib/localSession";
+import { createRoom, fetchFinishedGames, fetchRoomByCode, getSessionUser, joinRoomByCode, recordFinishedGame, signIn, subscribeToRoom, updateRoomState } from "./lib/supabase";
 import type { Card, Difficulty, GameState, Meld } from "./types";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor, useSensor, useSensors, DragEndEvent, useDroppable } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
 const ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const APP_VERSION = "mobile-preview-1";
 
 function randomRoomCode() {
   return Array.from({ length: 6 }, () => ROOM_ALPHABET[Math.floor(Math.random() * ROOM_ALPHABET.length)]).join("");
 }
 
-function PlayingCard({ card, selected, onToggle }: {
+function PlayingCard({ card, selected }: {
   card: Card;
   selected: boolean;
-  onToggle: () => void;
 }) {
   const rank = card.rank === "JOKER" ? "Jkr" : card.rank;
   const suit = SUIT_SYMBOL[card.suit];
   return (
-    <button
+    <div
       className={`playing-card ${card.suit.toLowerCase()} ${selected ? "selected" : ""}`}
-      onClick={onToggle}
     >
       <div>
         <div className="card-value">{rank}</div>
@@ -46,7 +48,7 @@ function PlayingCard({ card, selected, onToggle }: {
         <div className="card-value">{rank}</div>
         <div className="card-suit">{suit}</div>
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -56,14 +58,13 @@ function SortablePlayingCard({ card, selected, onToggle }: {
   onToggle: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id });
-  const [isHovered, setIsHovered] = useState(false);
 
   const zIndex = isDragging ? 50 : 1;
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition: isDragging ? transition : (transition ? `${transition}, z-index 0ms 250ms` : 'z-index 0ms 250ms'),
-    touchAction: 'none', // Prevent scrolling on touch devices while dragging
+    touchAction: 'pan-y',
     zIndex,
   };
 
@@ -74,10 +75,11 @@ function SortablePlayingCard({ card, selected, onToggle }: {
       {...attributes} 
       {...listeners} 
       className={isDragging ? 'is-dragging' : ''}
-      onPointerEnter={() => setIsHovered(true)}
-      onPointerLeave={() => setIsHovered(false)}
+      onClick={onToggle}
+      aria-pressed={selected}
+      aria-label={`${cardLabel(card)}${selected ? ", selected" : ""}`}
     >
-      <PlayingCard card={card} selected={selected} onToggle={onToggle} />
+      <PlayingCard card={card} selected={selected} />
     </div>
   );
 }
@@ -124,19 +126,24 @@ function MeldStack({ meld, selectable, selected, onSelect }: { meld: Meld; selec
   );
 
   return (
-    <div
+    <button
+      type="button"
       ref={setNodeRef}
       className={`meld-stack ${selectable ? "selectable" : ""} ${selected ? "selected" : ""}`}
       onClick={selectable ? onSelect : undefined}
+      aria-disabled={!selectable}
+      aria-pressed={selected}
       style={{ outline: isOver ? '4px solid #3b82f6' : 'none' }}
     >
       {body}
-    </div>
+    </button>
   );
 }
 
 function App() {
   const remoteUpdateRef = useRef(false);
+  const serverUpdatedAtRef = useRef<string | null>(null);
+  const finishedRecordedRef = useRef<string | null>(null);
   const [email, setEmail] = useState("");
   const [authUser, setAuthUser] = useState<string | null>(null);
   const [state, setState] = useState<GameState | null>(null);
@@ -149,6 +156,9 @@ function App() {
   const [message, setMessage] = useState("Welcome! Tap a button below to get started.");
   const [history, setHistory] = useState<Array<{ id: string; created_at: string; scores: Array<{ id: string; name: string; score: number }> }>>([]);
   const [handOrder, setHandOrder] = useState<string[]>([]);
+  const [savedSession, setSavedSession] = useState<SavedGameSession | null>(null);
+  const [reportStatus, setReportStatus] = useState("");
+  const [syncStatus, setSyncStatus] = useState("");
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -168,6 +178,7 @@ function App() {
   );
 
   useEffect(() => {
+    setSavedSession(loadGameSession());
     void getSessionUser().then((user) => {
       if (user) {
         setAuthUser(user.id);
@@ -179,17 +190,25 @@ function App() {
 
   useEffect(() => {
     if (!state?.winnerId) return;
+    if (!authUser) return;
+    if (finishedRecordedRef.current === state.id) return;
+    if (state.mode === "online" && state.winnerId !== viewerPlayerId) return;
+    finishedRecordedRef.current = state.id;
+    clearGameSession();
+    setSavedSession(null);
     void recordFinishedGame(state.mode === "online" ? state.id : null, authUser, state.players.map((player) => ({
       id: player.id,
       name: player.name,
       score: player.score,
     }))).then(() => fetchFinishedGames().then(setHistory));
-  }, [state?.winnerId, authUser]);
+  }, [state?.winnerId, state?.id, state?.mode, state?.players, authUser, viewerPlayerId]);
 
   useEffect(() => {
     if (!state || state.mode !== "online") return;
-    return subscribeToRoom(state.id, (remoteState) => {
+    return subscribeToRoom(state.id, (remoteState, updatedAt) => {
       remoteUpdateRef.current = true;
+      serverUpdatedAtRef.current = updatedAt;
+      setSyncStatus("Game synced");
       setState(remoteState);
     });
   }, [state?.id, state?.mode]);
@@ -210,8 +229,32 @@ function App() {
       remoteUpdateRef.current = false;
       return;
     }
-    void updateRoomState(state.id, state);
+    const expectedUpdatedAt = serverUpdatedAtRef.current;
+    void updateRoomState(state.id, state, expectedUpdatedAt)
+      .then(async (result) => {
+        if (result.conflict && state.roomCode) {
+          const latest = await fetchRoomByCode(state.roomCode);
+          if (latest) {
+            remoteUpdateRef.current = true;
+            serverUpdatedAtRef.current = latest.updatedAt;
+            setState(latest.state);
+            setSyncStatus("The other player moved first. Game refreshed.");
+          }
+          return;
+        }
+        serverUpdatedAtRef.current = result.updatedAt;
+        setSyncStatus("Game saved");
+      })
+      .catch(() => setSyncStatus("Waiting to reconnect…"));
   }, [state]);
+
+  useEffect(() => {
+    if (!state || !viewerPlayerId) return;
+    saveGameSession(state, viewerPlayerId);
+    if (!state.winnerId) {
+      setSavedSession({ state, viewerPlayerId, savedAt: new Date().toISOString() });
+    }
+  }, [state, viewerPlayerId]);
 
   const currentPlayer = state ? state.players[state.currentPlayer] : null;
   const viewer = state && viewerPlayerId ? state.players.find((player) => player.id === viewerPlayerId) ?? null : null;
@@ -246,18 +289,57 @@ function App() {
     setMessage(`Started game against the Computer.`);
   }
 
+  async function continueSavedGame() {
+    if (!savedSession) return;
+    setSelected([]);
+    setSelectedMeld("");
+    if (savedSession.state.mode === "online" && savedSession.state.roomCode) {
+      if (!authUser) {
+        setMessage("Sign in with the same email first, then tap Continue Game.");
+        return;
+      }
+      const room = await fetchRoomByCode(savedSession.state.roomCode);
+      if (room) {
+        remoteUpdateRef.current = true;
+        serverUpdatedAtRef.current = room.updatedAt;
+        setState(room.state);
+        setViewerPlayerId(savedSession.viewerPlayerId);
+        setSyncStatus("Game restored");
+        return;
+      }
+    }
+    setState(savedSession.state);
+    setViewerPlayerId(savedSession.viewerPlayerId);
+    setMessage("Game restored.");
+  }
+
+  function leaveGame() {
+    if (state && !state.winnerId && !window.confirm("Leave this game? You can still continue it from this device later.")) return;
+    setState(null);
+    setViewerPlayerId(null);
+    setSelected([]);
+    setSelectedMeld("");
+    setMessage("Choose how you would like to play.");
+  }
+
   async function startOnlineGame() {
     if (!authUser) {
       setMessage("Please sign in first to play online.");
       return;
     }
-    const roomCode = randomRoomCode();
-    const game = createGame("online", deckCount, [{ name: onlineName }, { name: "Mom" }], roomCode);
-    await createRoom(roomCode, authUser, game);
-    await joinRoom(game.id, authUser, 0);
-    setState(game);
-    setViewerPlayerId(game.players[0].id);
-    setMessage(`Room ${roomCode} created. Share this code!`);
+    try {
+      const roomCode = randomRoomCode();
+      const game = createGame("online", deckCount, [{ name: onlineName }, { name: "Mom" }], roomCode);
+      const created = await createRoom(roomCode, authUser, game);
+      await joinRoomByCode(roomCode);
+      remoteUpdateRef.current = true;
+      serverUpdatedAtRef.current = created.updatedAt;
+      setState(game);
+      setViewerPlayerId(game.players[0].id);
+      setMessage(`Room ${roomCode} created. Share this code!`);
+    } catch {
+      setMessage("We could not create the room. Check your connection and try again.");
+    }
   }
 
   async function handleJoinRoom() {
@@ -265,15 +347,20 @@ function App() {
       setMessage("Please sign in first to join.");
       return;
     }
-    const room = await fetchRoomByCode(joinCode.toUpperCase());
-    if (!room) {
-      setMessage("Room not found. Check the code.");
-      return;
+    try {
+      const room = await joinRoomByCode(joinCode.toUpperCase());
+      if (!room) {
+        setMessage("Room not found. Check the code.");
+        return;
+      }
+      remoteUpdateRef.current = true;
+      serverUpdatedAtRef.current = room.updatedAt;
+      setState(room.state);
+      setViewerPlayerId(room.state.players[room.seat]?.id ?? null);
+      setMessage(`Joined room ${joinCode.toUpperCase()}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "We could not join the room. Try again.");
     }
-    await joinRoom(room.id, authUser, 1);
-    setState(room.state);
-    setViewerPlayerId(room.state.players[1]?.id ?? null);
-    setMessage(`Joined room ${joinCode.toUpperCase()}.`);
   }
 
   function update(next: GameState) {
@@ -366,16 +453,25 @@ function App() {
   }
 
   async function onEmailSignIn() {
-    await signIn(email);
-    setMessage(`Check your email! We sent a login link to ${email}.`);
+    try {
+      await signIn(email);
+      setMessage(`Check your email! We sent a login link to ${email}.`);
+    } catch {
+      setMessage("We could not send the login link. Check the email and try again.");
+    }
   }
 
-  function downloadDebugLogs() {
+  async function shareSupportReport() {
     if (!state) return;
-    const logContent = `Hand and Foot Game Logs
+    const logContent = `Hand and Foot Problem Report
+App Version: ${APP_VERSION}
+Created: ${new Date().toISOString()}
+Device: ${navigator.userAgent}
+Screen: ${window.innerWidth}x${window.innerHeight}
 Room Code: ${state.roomCode || 'N/A'}
 Mode: ${state.mode}
 ID: ${state.id}
+Sync Status: ${syncStatus || 'N/A'}
 
 --- Action Log ---
 ${state.actionLog ? state.actionLog.join('\n') : 'No actions yet.'}
@@ -386,13 +482,26 @@ Selected Meld: ${selectedMeld || 'None'}
 
 --- Full State ---
 ${JSON.stringify(state, null, 2)}`;
-    const dataStr = "data:text/plain;charset=utf-8," + encodeURIComponent(logContent);
+    const file = new File([logContent], `hand_and_foot_report_${state.id}.txt`, { type: "text/plain" });
+    const shareData = { title: "Hand and Foot problem report", text: "Please send this report to Ben.", files: [file] };
+    if (navigator.share && navigator.canShare?.(shareData)) {
+      try {
+        await navigator.share(shareData);
+        setReportStatus("Problem report shared. Thank you!");
+        return;
+      } catch (error) {
+        if ((error as DOMException).name === "AbortError") return;
+      }
+    }
+    const dataStr = URL.createObjectURL(file);
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", `hand_and_foot_debug_${state.id}.txt`);
+    downloadAnchorNode.setAttribute("download", file.name);
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
+    URL.revokeObjectURL(dataStr);
+    setReportStatus("Problem report downloaded. Send the file to Ben.");
   }
 
   const canAct = Boolean(state && currentPlayer && viewer && currentPlayer.id === viewer.id && !viewer.isCpu && !state.winnerId);
@@ -428,35 +537,51 @@ ${JSON.stringify(state, null, 2)}`;
   else if (selected.length !== 1) discardTooltip = "Select exactly one card to discard.";
   else if (viewer && !viewer.hasGoneDown && turnMeldPoints > 0 && turnMeldPoints < 90) discardTooltip = "You cannot end the turn until your first melds total 90 points.";
 
+  const actionGuidance = !canAct
+    ? `Waiting for ${currentPlayer?.name ?? "the other player"}.`
+    : !state?.turn.drawn
+      ? "Draw cards to begin your turn."
+      : selected.length === 0
+        ? "Tap one or more cards to select them."
+        : selectedMeld
+          ? `${selected.length} selected. Add them to the highlighted basket or discard one card.`
+          : `${selected.length} selected. Make a new basket, choose an existing basket, or discard one card.`;
+
   if (state && currentPlayer && viewer) {
     const isWinner = state.winnerId === viewer.id;
     return (
       <div className="table-shell">
         {isWinner && <VictoryCelebration />}
-        <button 
-          className="btn btn-outline" 
-          style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 10000, width: 'auto', padding: '10px 15px', backgroundColor: 'white' }} 
-          onClick={() => setState(prev => prev ? { ...prev, winnerId: viewer.id } : prev)}
-        >
-          Debug Win
-        </button>
         <header className="table-header">
+          <button className="header-icon-button" onClick={leaveGame} aria-label="Return to home">‹</button>
           <h2>Hand and Foot</h2>
           <div className={`turn-indicator ${canAct ? "is-you" : ""}`}>
             {state.winnerId ? "Game Over!" : canAct ? "Your Turn" : `Waiting for ${currentPlayer.name}...`}
           </div>
-          {state.roomCode && <div>Room Code: <strong>{state.roomCode}</strong></div>}
-          <button 
-            className="btn btn-outline" 
-            style={{ padding: '8px', marginLeft: 'auto', borderRadius: '50%', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none' }} 
-            onClick={downloadDebugLogs}
-            title="Download Debug Logs"
+          {state.roomCode && <div className="room-code">Room <strong>{state.roomCode}</strong></div>}
+          <button
+            className="support-button"
+            onClick={() => void shareSupportReport()}
+            title="Report a Problem"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M8 2v4"/><path d="M16 2v4"/><rect width="16" height="14" x="4" y="8" rx="2"/><path d="M12 11v6"/><path d="M8 14h8"/><path d="M4 14H2"/><path d="M22 14h-2"/><path d="M4 10H2"/><path d="M22 10h-2"/><path d="M4 18H2"/><path d="M22 18h-2"/>
             </svg>
+            <span>Report a Problem</span>
           </button>
         </header>
+
+        <div className="mobile-player-strip">
+          {opponents.map((player) => (
+            <div key={player.id} className={player.id === currentPlayer.id ? "is-active" : ""}>
+              <span className="player-avatar" aria-hidden="true">{player.name.slice(0, 1).toUpperCase()}</span>
+              <span><strong>{player.name}</strong><small>{player.hand.length ? `${player.hand.length} in hand` : `${player.foot.length} in foot`}</small></span>
+            </div>
+          ))}
+          <span className="sync-chip">{syncStatus || (state.mode === "cpu" ? "Saved on this phone" : "Connecting…")}</span>
+        </div>
+
+        {reportStatus && <div className="report-status" role="status">{reportStatus}</div>}
 
         {state.lastAction && (
           <div style={{ backgroundColor: '#fef3c7', padding: '8px 16px', textAlign: 'center', fontWeight: 'bold', color: '#92400e', borderBottom: '1px solid #fde68a' }}>
@@ -573,6 +698,9 @@ ${JSON.stringify(state, null, 2)}`;
                   <h3>{activeHandLabel} ({visibleCards.length} cards)</h3>
                   {viewer.foot.length > 0 && <p>Foot: {viewer.foot.length} cards waiting</p>}
                 </div>
+                <span className={`selection-count ${selected.length ? "has-selection" : ""}`} aria-live="polite">
+                  {selected.length ? `${selected.length} selected` : "Tap cards to select"}
+                </span>
               </div>
 
               {canAct && state.turn.drawn && !viewer.hasGoneDown && state.turn.playedThisTurn.length > 0 && turnMeldPoints < 90 && (
@@ -633,6 +761,7 @@ ${JSON.stringify(state, null, 2)}`;
                   </button>
                 )}
               </div>
+              <div className="action-guidance" role="status">{actionGuidance}</div>
             </section>
             </>
           )}
@@ -644,24 +773,44 @@ ${JSON.stringify(state, null, 2)}`;
   }
 
   return (
-    <div className="shell">
-      <h1>Hand and Foot</h1>
-      <p className="lede">
-        Play online with friends or against the computer!
-      </p>
+    <div className="shell home-shell">
+      <header className="home-hero">
+        <div className="brand-mark" aria-hidden="true">H<span>&amp;</span>F</div>
+        <div>
+          <span className="eyebrow">The family card table</span>
+          <h1>Hand &amp; Foot</h1>
+          <p className="lede">Big cards, simple choices, and your game waiting whenever you come back.</p>
+        </div>
+        <InstallHelp />
+      </header>
 
       {message && <div className="banner">{message}</div>}
 
+      {savedSession && !savedSession.state.winnerId && (
+        <section className="continue-card">
+          <div>
+            <span className="eyebrow">Ready when you are</span>
+            <h2>Continue your {savedSession.state.mode === "cpu" ? "computer" : "online"} game</h2>
+            <p>Saved {new Date(savedSession.savedAt).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}</p>
+          </div>
+          <button className="btn" onClick={() => void continueSavedGame()}>Continue Game</button>
+        </section>
+      )}
+
       <div className="setup-grid">
         <div className="panel">
-          <h2>Play against Computer</h2>
+          <span className="panel-icon" aria-hidden="true">♠</span>
+          <h2>Practice with the Computer</h2>
+          <p>Play at your own pace. Your game is saved on this device.</p>
           <button className="btn" onClick={() => startCpuGame("easy")}>Play (Easy)</button>
           <button className="btn btn-outline" onClick={() => startCpuGame("medium")}>Play (Medium)</button>
           <button className="btn btn-hard" onClick={() => startCpuGame("hard")}>Play (Hard)</button>
         </div>
 
         <div className="panel">
-          <h2>Play with Mom (Online)</h2>
+          <span className="panel-icon panel-icon-warm" aria-hidden="true">♥</span>
+          <h2>Play Together Online</h2>
+          <p>Create a private room, then share the six-letter code.</p>
           {!authUser ? (
             <div>
               <label>Enter your email to login:</label>
@@ -683,6 +832,8 @@ ${JSON.stringify(state, null, 2)}`;
           )}
         </div>
       </div>
+      <GameHistory entries={history} />
+      <footer className="home-footer">Hand &amp; Foot Club · {APP_VERSION}</footer>
     </div>
   );
 }

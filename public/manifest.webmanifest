@@ -1,0 +1,19 @@
+{
+  "name": "Hand and Foot Club",
+  "short_name": "Hand & Foot",
+  "description": "A friendly family Hand and Foot card game.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f7f3ea",
+  "theme_color": "#0e2d27",
+  "icons": [
+    {
+      "src": "/hand-foot-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

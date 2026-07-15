@@ -554,6 +554,42 @@ function findPossibleSetsForHardMode(active: Card[], existingMelds: Meld[]) {
   return { possibleMelds, remainingWilds: wilds };
 }
 
+function findPossibleRunsForHardMode(active: Card[], existingMelds: Meld[]) {
+  const possibleMelds: Card[][] = [];
+  const usedCardIds = new Set<string>();
+  const availableWilds = active.filter(isWild);
+
+  for (const suit of SUITS) {
+    const naturals = active
+      .filter((card) => card.suit === suit && isNaturalForMeld(card) && !usedCardIds.has(card.id))
+      .sort((a, b) => RANKS.indexOf(a.rank as (typeof RANKS)[number]) - RANKS.indexOf(b.rank as (typeof RANKS)[number]));
+    let best: Card[] | null = null;
+
+    for (let start = 0; start < naturals.length; start += 1) {
+      for (let end = start + 1; end < naturals.length; end += 1) {
+        const windowNaturals = naturals.slice(start, end + 1);
+        const firstPosition = RANKS.indexOf(windowNaturals[0].rank as (typeof RANKS)[number]);
+        const lastPosition = RANKS.indexOf(windowNaturals[windowNaturals.length - 1].rank as (typeof RANKS)[number]);
+        const missingCount = lastPosition - firstPosition + 1 - windowNaturals.length;
+        const freeWilds = availableWilds.filter((card) => !usedCardIds.has(card.id));
+        if (missingCount > freeWilds.length) continue;
+        const candidate = [...windowNaturals, ...freeWilds.slice(0, missingCount)];
+        if (candidate.length < 3 || !canCreateMeld(candidate, existingMelds).ok) continue;
+        if (!best || candidate.length > best.length || candidate.reduce((sum, card) => sum + cardPoints(card), 0) > best.reduce((sum, card) => sum + cardPoints(card), 0)) {
+          best = candidate;
+        }
+      }
+    }
+
+    if (best) {
+      possibleMelds.push(best);
+      best.forEach((card) => usedCardIds.add(card.id));
+    }
+  }
+
+  return possibleMelds;
+}
+
 export function runCpuTurn(state: GameState) {
   const player = state.players[state.currentPlayer];
   if (!player.isCpu || state.winnerId) {
@@ -597,7 +633,11 @@ export function runCpuTurn(state: GameState) {
 
   if (difficulty === "hard") {
     // Hard Difficulty Melding Logic
-    const { possibleMelds } = findPossibleSetsForHardMode(active, draft.players[draft.currentPlayer].melds);
+    const { possibleMelds: possibleSets } = findPossibleSetsForHardMode(active, draft.players[draft.currentPlayer].melds);
+    const setCardIds = new Set(possibleSets.flat().map((card) => card.id));
+    const cardsAfterSets = active.filter((card) => !setCardIds.has(card.id));
+    const possibleRuns = findPossibleRunsForHardMode(cardsAfterSets, draft.players[draft.currentPlayer].melds);
+    const possibleMelds = [...possibleSets, ...possibleRuns];
     const newMeldsPoints = possibleMelds.reduce((sum, meld) => sum + meld.reduce((s, c) => s + cardPoints(c), 0), 0);
 
     if (alreadyDown || newMeldsPoints >= 90) {
