@@ -14,7 +14,7 @@ import {
 import { VictoryCelebration } from "./VictoryCelebration";
 import { GameHistory } from "./components/GameHistory";
 import { InstallHelp } from "./components/InstallHelp";
-import { canAddToMeld, canCreateMeld, cardLabel, cardPoints, SUIT_SYMBOL } from "./game/rules";
+import { canAddToMeld, canCreateMeld, cardLabel, cardPoints, findUniqueAddTarget, SUIT_SYMBOL } from "./game/rules";
 import { clearGameSession, loadGameSession, saveGameSession, type SavedGameSession } from "./lib/localSession";
 import { createRoom, fetchFinishedGames, fetchRoomByCode, getSessionUser, joinRoomByCode, recordFinishedGame, signIn, subscribeToRoom, updateRoomState } from "./lib/supabase";
 import type { Card, Difficulty, GameState, Meld } from "./types";
@@ -383,8 +383,10 @@ function App() {
   }
 
   function onAddToMeld() {
-    if (!state || !viewer || !selectedMeld) return;
-    update(addToMeld(state, viewer.id, selectedMeld, selected));
+    if (!state || !viewer) return;
+    const meldId = selectedMeld || findUniqueAddTarget(viewer.melds, selectedCards());
+    if (!meldId) return;
+    update(addToMeld(state, viewer.id, meldId, selected));
     setSelectedMeld("");
   }
 
@@ -511,6 +513,9 @@ ${JSON.stringify(state, null, 2)}`;
   const canDiscard = !state?.turn.playedThisTurn.length || viewer?.hasGoneDown || turnMeldPoints >= 90;
   const mustDiscard = Boolean(canAct && state?.turn.drawn && viewer?.chosenHand && canDiscard);
   const canPlay = Boolean(canAct && state?.turn.drawn && viewer?.chosenHand);
+  const inferredMeld = !selectedMeld && viewer
+    ? findUniqueAddTarget(viewer.melds, selectedCards())
+    : null;
 
   let newBasketTooltip = "";
   if (!canPlay) newBasketTooltip = "You must draw cards first.";
@@ -523,8 +528,8 @@ ${JSON.stringify(state, null, 2)}`;
 
   let addToBasketTooltip = "";
   if (!canPlay) addToBasketTooltip = "You must draw cards first.";
-  else if (!selectedMeld) addToBasketTooltip = "Click on an existing basket first to select it.";
   else if (selected.length === 0) addToBasketTooltip = "Select cards from your hand to add.";
+  else if (!selectedMeld && !inferredMeld) addToBasketTooltip = "Choose the basket you want to add these cards to.";
   else if (viewer && viewer.footRevealed && selected.length === visibleCards.length) addToBasketTooltip = "You must keep one card to discard to go out.";
   else if (viewer) {
     const meld = viewer.melds.find(m => m.id === selectedMeld);
@@ -545,6 +550,8 @@ ${JSON.stringify(state, null, 2)}`;
         ? "Tap one or more cards to select them."
         : selectedMeld
           ? `${selected.length} selected. Add them to the highlighted basket or discard one card.`
+          : inferredMeld
+            ? `${selected.length} selected. Tap Add to Basket to place ${selected.length === 1 ? "it" : "them"} in the matching basket.`
           : `${selected.length} selected. Make a new basket, choose an existing basket, or discard one card.`;
 
   if (state && currentPlayer && viewer) {

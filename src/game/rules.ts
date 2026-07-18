@@ -150,3 +150,8 @@ export function canAddToMeld(meld: Meld, cards: Card[]) {
   }
   return consecutiveRanks(merged);
 }
+
+export function findUniqueAddTarget(melds: Meld[], cards: Card[]) {
+  const compatible = melds.filter((meld) => canAddToMeld(meld, cards));
+  return compatible.length === 1 ? compatible[0].id : null;
+}
