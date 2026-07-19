@@ -51,6 +51,23 @@ describe("house rules", () => {
     expect(findUniqueAddTarget([queens, sevens], [card("s4", "7", "diamonds")])).toBe("sevens");
   });
 
+  it("finds the matching dirty basket from the reported foot-card scenario", () => {
+    const eights: Meld = {
+      id: "eights",
+      type: "set",
+      rank: "8",
+      cards: [card("wild", "2", "hearts"), card("eight-a", "8", "diamonds"), card("eight-b", "8", "spades")],
+    };
+    const fives: Meld = {
+      id: "fives",
+      type: "set",
+      rank: "5",
+      cards: [card("five-a", "5"), card("five-b", "5", "hearts"), card("five-c", "5", "spades")],
+    };
+
+    expect(findUniqueAddTarget([fives, eights], [card("selected-eight", "8", "hearts")])).toBe("eights");
+  });
+
   it("requires an explicit choice when more than one basket is compatible", () => {
     const first: Meld = {
       id: "first",
