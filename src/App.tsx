@@ -16,18 +16,13 @@ import { GameHistory } from "./components/GameHistory";
 import { InstallHelp } from "./components/InstallHelp";
 import { canAddToMeld, canCreateMeld, cardLabel, cardPoints, findUniqueAddTarget, SUIT_SYMBOL } from "./game/rules";
 import { clearGameSession, loadGameSession, saveGameSession, type SavedGameSession } from "./lib/localSession";
-import { createRoom, fetchFinishedGames, fetchRoomByCode, getSessionUser, joinRoomByCode, recordFinishedGame, signIn, subscribeToRoom, updateRoomState } from "./lib/supabase";
+import { fetchFinishedGames, fetchRoomByCode, getSessionUser, recordFinishedGame, subscribeToRoom, updateRoomState } from "./lib/supabase";
 import type { Card, Difficulty, GameState, Meld } from "./types";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor, useSensor, useSensors, DragEndEvent, useDroppable } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-const ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const APP_VERSION = "mobile-preview-2";
-
-function randomRoomCode() {
-  return Array.from({ length: 6 }, () => ROOM_ALPHABET[Math.floor(Math.random() * ROOM_ALPHABET.length)]).join("");
-}
 
 function PlayingCard({ card, selected }: {
   card: Card;
@@ -144,15 +139,12 @@ function App() {
   const remoteUpdateRef = useRef(false);
   const serverUpdatedAtRef = useRef<string | null>(null);
   const finishedRecordedRef = useRef<string | null>(null);
-  const [email, setEmail] = useState("");
   const [authUser, setAuthUser] = useState<string | null>(null);
   const [state, setState] = useState<GameState | null>(null);
   const [viewerPlayerId, setViewerPlayerId] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [selectedMeld, setSelectedMeld] = useState<string>("");
   const [deckCount, setDeckCount] = useState(3);
-  const [onlineName, setOnlineName] = useState("");
-  const [joinCode, setJoinCode] = useState("");
   const [message, setMessage] = useState("Welcome! Tap a button below to get started.");
   const [history, setHistory] = useState<Array<{ id: string; created_at: string; scores: Array<{ id: string; name: string; score: number }> }>>([]);
   const [handOrder, setHandOrder] = useState<string[]>([]);
@@ -182,7 +174,6 @@ function App() {
     void getSessionUser().then((user) => {
       if (user) {
         setAuthUser(user.id);
-        setEmail(user.email ?? "");
       }
     });
     void fetchFinishedGames().then(setHistory);
@@ -322,47 +313,6 @@ function App() {
     setMessage("Choose how you would like to play.");
   }
 
-  async function startOnlineGame() {
-    if (!authUser) {
-      setMessage("Please sign in first to play online.");
-      return;
-    }
-    try {
-      const roomCode = randomRoomCode();
-      const game = createGame("online", deckCount, [{ name: onlineName }, { name: "Mom" }], roomCode);
-      const created = await createRoom(roomCode, authUser, game);
-      await joinRoomByCode(roomCode);
-      remoteUpdateRef.current = true;
-      serverUpdatedAtRef.current = created.updatedAt;
-      setState(game);
-      setViewerPlayerId(game.players[0].id);
-      setMessage(`Room ${roomCode} created. Share this code!`);
-    } catch {
-      setMessage("We could not create the room. Check your connection and try again.");
-    }
-  }
-
-  async function handleJoinRoom() {
-    if (!authUser) {
-      setMessage("Please sign in first to join.");
-      return;
-    }
-    try {
-      const room = await joinRoomByCode(joinCode.toUpperCase());
-      if (!room) {
-        setMessage("Room not found. Check the code.");
-        return;
-      }
-      remoteUpdateRef.current = true;
-      serverUpdatedAtRef.current = room.updatedAt;
-      setState(room.state);
-      setViewerPlayerId(room.state.players[room.seat]?.id ?? null);
-      setMessage(`Joined room ${joinCode.toUpperCase()}.`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "We could not join the room. Try again.");
-    }
-  }
-
   function update(next: GameState) {
     setState(next);
     setSelected([]);
@@ -452,15 +402,6 @@ function App() {
   function onUndoBaskets() {
     if (!state || !viewer) return;
     update(undoMeldsThisTurn(state, viewer.id));
-  }
-
-  async function onEmailSignIn() {
-    try {
-      await signIn(email);
-      setMessage(`Check your email! We sent a login link to ${email}.`);
-    } catch {
-      setMessage("We could not send the login link. Check the email and try again.");
-    }
   }
 
   async function shareSupportReport() {
@@ -809,34 +750,11 @@ ${JSON.stringify(state, null, 2)}`;
           <span className="panel-icon" aria-hidden="true">♠</span>
           <h2>Practice with the Computer</h2>
           <p>Play at your own pace. Your game is saved on this device.</p>
-          <button className="btn" onClick={() => startCpuGame("easy")}>Play (Easy)</button>
-          <button className="btn btn-outline" onClick={() => startCpuGame("medium")}>Play (Medium)</button>
-          <button className="btn btn-hard" onClick={() => startCpuGame("hard")}>Play (Hard)</button>
-        </div>
-
-        <div className="panel">
-          <span className="panel-icon panel-icon-warm" aria-hidden="true">♥</span>
-          <h2>Play Together Online</h2>
-          <p>Create a private room, then share the six-letter code.</p>
-          {!authUser ? (
-            <div>
-              <label>Enter your email to login:</label>
-              <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.com" />
-              <button className="btn" onClick={() => void onEmailSignIn()} disabled={!email}>Send Login Link</button>
-            </div>
-          ) : (
-            <div>
-              <label>Your Name in the Game:</label>
-              <input value={onlineName} onChange={(e) => setOnlineName(e.target.value)} placeholder="e.g. Grandma" />
-              <button className="btn" onClick={() => void startOnlineGame()} disabled={!onlineName}>Create a New Game Room</button>
-              
-              <hr style={{margin: '20px 0', border: '1px solid #e5e7eb'}}/>
-              
-              <label>Or enter a code to join:</label>
-              <input value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())} placeholder="ABC123" />
-              <button className="btn btn-secondary" onClick={() => void handleJoinRoom()} disabled={!joinCode}>Join Game</button>
-            </div>
-          )}
+          <div className="difficulty-buttons" role="group" aria-label="Choose computer difficulty">
+            <button className="btn" onClick={() => startCpuGame("easy")}>Easy</button>
+            <button className="btn btn-outline" onClick={() => startCpuGame("medium")}>Medium</button>
+            <button className="btn btn-hard" onClick={() => startCpuGame("hard")}>Hard</button>
+          </div>
         </div>
       </div>
       <GameHistory entries={history} />

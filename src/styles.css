@@ -485,6 +485,17 @@ label {
   gap: 30px;
 }
 
+.difficulty-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.difficulty-buttons .btn {
+  min-width: 0;
+  margin-bottom: 0;
+}
+
 .banner {
   background-color: #fef3c7;
   color: #92400e;
@@ -729,8 +740,6 @@ input:focus-visible {
   color: var(--felt);
   font-size: 1.7rem;
 }
-.panel-icon-warm { background: #fbe8e6; color: var(--coral); }
-
 .history-panel {
   display: grid;
   grid-template-columns: 240px 1fr;
@@ -852,6 +861,8 @@ input:focus-visible {
   .panel p { font-size: 1rem; margin-bottom: 16px; }
   .panel-icon { width: 48px; height: 48px; margin-bottom: 12px; }
   .btn { min-height: 52px; padding: 12px 14px; font-size: 1rem; }
+  .difficulty-buttons { gap: 8px; }
+  .difficulty-buttons .btn { padding-inline: 8px; }
   input { min-height: 54px; font-size: 1rem; padding: 13px; margin-bottom: 14px; }
   .history-panel { grid-template-columns: 1fr; gap: 8px; padding: 20px; margin-top: 16px; }
   .history-panel h2 { font-size: 1.35rem; }
