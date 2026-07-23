@@ -8,6 +8,7 @@ import {
   drawFromStock,
   drawSplit,
   pickUpDiscard,
+  repairOpeningStatus,
   runCpuTurn,
   undoMeldsThisTurn,
 } from "./game/engine";
@@ -22,7 +23,7 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor, 
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-const APP_VERSION = "mobile-preview-2";
+const APP_VERSION = "mobile-preview-3";
 
 function PlayingCard({ card, selected }: {
   card: Card;
@@ -149,6 +150,7 @@ function App() {
   const [history, setHistory] = useState<Array<{ id: string; created_at: string; scores: Array<{ id: string; name: string; score: number }> }>>([]);
   const [handOrder, setHandOrder] = useState<string[]>([]);
   const [savedSession, setSavedSession] = useState<SavedGameSession | null>(null);
+  const [showNewGameChoices, setShowNewGameChoices] = useState(false);
   const [reportStatus, setReportStatus] = useState("");
   const [syncStatus, setSyncStatus] = useState("");
 
@@ -277,7 +279,13 @@ function App() {
     ]);
     setState(game);
     setViewerPlayerId(game.players[0].id);
+    setShowNewGameChoices(false);
     setMessage(`Started game against the Computer.`);
+  }
+
+  function startNewCpuGame(cpuDifficulty: Difficulty) {
+    if (savedSession && !window.confirm("Start a new game? Your saved game will be replaced.")) return;
+    startCpuGame(cpuDifficulty);
   }
 
   async function continueSavedGame() {
@@ -299,7 +307,7 @@ function App() {
         return;
       }
     }
-    setState(savedSession.state);
+    setState(repairOpeningStatus(savedSession.state));
     setViewerPlayerId(savedSession.viewerPlayerId);
     setMessage("Game restored.");
   }
@@ -741,7 +749,27 @@ ${JSON.stringify(state, null, 2)}`;
             <h2>Continue your {savedSession.state.mode === "cpu" ? "computer" : "online"} game</h2>
             <p>Saved {new Date(savedSession.savedAt).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}</p>
           </div>
-          <button className="btn" onClick={() => void continueSavedGame()}>Continue Game</button>
+          <div className="continue-actions">
+            <button className="btn" onClick={() => void continueSavedGame()}>Continue Game</button>
+            <button
+              className="btn continue-new-game"
+              onClick={() => setShowNewGameChoices((current) => !current)}
+              aria-expanded={showNewGameChoices}
+              aria-controls="saved-new-game-options"
+            >
+              Start New Game
+            </button>
+            {showNewGameChoices && (
+              <div id="saved-new-game-options" className="saved-new-game-options">
+                <span>Choose difficulty</span>
+                <div className="difficulty-buttons">
+                  <button className="btn" onClick={() => startNewCpuGame("easy")}>Easy</button>
+                  <button className="btn btn-outline" onClick={() => startNewCpuGame("medium")}>Medium</button>
+                  <button className="btn btn-hard" onClick={() => startNewCpuGame("hard")}>Hard</button>
+                </div>
+              </div>
+            )}
+          </div>
         </section>
       )}
 
@@ -751,9 +779,9 @@ ${JSON.stringify(state, null, 2)}`;
           <h2>Practice with the Computer</h2>
           <p>Play at your own pace. Your game is saved on this device.</p>
           <div className="difficulty-buttons" role="group" aria-label="Choose computer difficulty">
-            <button className="btn" onClick={() => startCpuGame("easy")}>Easy</button>
-            <button className="btn btn-outline" onClick={() => startCpuGame("medium")}>Medium</button>
-            <button className="btn btn-hard" onClick={() => startCpuGame("hard")}>Hard</button>
+            <button className="btn" onClick={() => startNewCpuGame("easy")}>Easy</button>
+            <button className="btn btn-outline" onClick={() => startNewCpuGame("medium")}>Medium</button>
+            <button className="btn btn-hard" onClick={() => startNewCpuGame("hard")}>Hard</button>
           </div>
         </div>
       </div>

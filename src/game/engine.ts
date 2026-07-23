@@ -104,6 +104,23 @@ export function createGame(mode: "cpu" | "online", deckCount: number, players: A
   };
 }
 
+export function repairOpeningStatus(state: GameState) {
+  return mutate(state, (draft) => {
+    const playedThisTurn = new Set(draft.turn.playedThisTurn.map((card) => card.id));
+
+    draft.players.forEach((player, playerIndex) => {
+      if (player.hasGoneDown || !player.melds.length) return;
+
+      const hasBasketFromCompletedTurn = playerIndex !== draft.currentPlayer
+        || player.melds.some((meld) => meld.cards.some((card) => !playedThisTurn.has(card.id)));
+
+      if (hasBasketFromCompletedTurn) {
+        player.hasGoneDown = true;
+      }
+    });
+  });
+}
+
 export function chooseStartingHand(state: GameState, playerId: string, optionIndex: 0 | 1) {
   return mutate(state, (draft) => {
     const player = draft.players.find((entry) => entry.id === playerId);
@@ -331,6 +348,9 @@ export function addToMeld(state: GameState, playerId: string, meldId: string, ca
     targetMeld.cards.push(...cards);
     targetMeld.cards = sortCardsForDisplay(targetMeld.cards);
     draft.turn.playedThisTurn.push(...cards);
+    if (!player.hasGoneDown && turnPoints(draft) >= 90) {
+      player.hasGoneDown = true;
+    }
     maybeRevealFoot(player);
     if (!player.hand.length && !player.foot.length) {
       player.score = 0;
