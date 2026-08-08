@@ -26,10 +26,9 @@ export interface Card {
 
 export interface Meld {
   id: string;
-  type: "set" | "run";
+  type: "set";
   cards: Card[];
-  rank?: Rank;
-  suit?: Exclude<Suit, "joker">;
+  rank: Rank;
 }
 
 export interface PendingChoice {

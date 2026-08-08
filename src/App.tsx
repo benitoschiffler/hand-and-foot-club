@@ -102,7 +102,7 @@ function MeldStack({ meld, selectable, selected, onSelect }: { meld: Meld; selec
   const body = (
     <>
       <div className="meld-header">
-        <span>{meld.type === "set" ? "Set" : "Run"}</span>
+        <span>Meld</span>
         <span>{meld.cards.length} cards</span>
       </div>
       <div className="card-fan" style={{ width: `${Math.max(120, (sortedCards.length - 1) * 26 + 40)}px` }}>
@@ -202,7 +202,7 @@ function App() {
       remoteUpdateRef.current = true;
       serverUpdatedAtRef.current = updatedAt;
       setSyncStatus("Game synced");
-      setState(remoteState);
+      setState(repairOpeningStatus(remoteState));
     });
   }, [state?.id, state?.mode]);
 
@@ -230,7 +230,7 @@ function App() {
           if (latest) {
             remoteUpdateRef.current = true;
             serverUpdatedAtRef.current = latest.updatedAt;
-            setState(latest.state);
+            setState(repairOpeningStatus(latest.state));
             setSyncStatus("The other player moved first. Game refreshed.");
           }
           return;
@@ -301,7 +301,7 @@ function App() {
       if (room) {
         remoteUpdateRef.current = true;
         serverUpdatedAtRef.current = room.updatedAt;
-        setState(room.state);
+        setState(repairOpeningStatus(room.state));
         setViewerPlayerId(savedSession.viewerPlayerId);
         setSyncStatus("Game restored");
         return;

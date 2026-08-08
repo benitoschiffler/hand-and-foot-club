@@ -1,5 +1,5 @@
 import type { Card, Difficulty, GameState, Meld, PlayerState } from "../types";
-import { canAddToMeld, canCreateMeld, cardLabel, cardPoints, detectMeldType, isBadThree, isNaturalForMeld, isWild, sortCardsForDisplay } from "./rules";
+import { canAddToMeld, canCreateMeld, cardLabel, cardPoints, isBadThree, isNaturalForMeld, isWild, sortCardsForDisplay } from "./rules";
 
 const SUITS = ["clubs", "diamonds", "hearts", "spades"] as const;
 const RANKS = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"] as const;
@@ -107,8 +107,33 @@ export function createGame(mode: "cpu" | "online", deckCount: number, players: A
 export function repairOpeningStatus(state: GameState) {
   return mutate(state, (draft) => {
     const playedThisTurn = new Set(draft.turn.playedThisTurn.map((card) => card.id));
+    const cardsFromInvalidRuns = new Set<string>();
+    let repairedRuns = false;
 
     draft.players.forEach((player, playerIndex) => {
+      const validMelds: Meld[] = [];
+      const cardsToRestore: Card[] = [];
+
+      for (const meld of player.melds) {
+        const verdict = canCreateMeld(meld.cards);
+        if (verdict.ok) {
+          const firstNatural = meld.cards.find(isNaturalForMeld)!;
+          validMelds.push({ id: meld.id, type: "set", rank: firstNatural.rank, cards: meld.cards });
+        } else {
+          repairedRuns = true;
+          cardsToRestore.push(...meld.cards);
+          meld.cards.forEach((card) => cardsFromInvalidRuns.add(card.id));
+        }
+      }
+
+      player.melds = validMelds;
+      if (cardsToRestore.length) {
+        restoreCards(player, cardsToRestore);
+      }
+      if (!player.melds.length) {
+        player.hasGoneDown = false;
+      }
+
       if (player.hasGoneDown || !player.melds.length) return;
 
       const hasBasketFromCompletedTurn = playerIndex !== draft.currentPlayer
@@ -118,6 +143,13 @@ export function repairOpeningStatus(state: GameState) {
         player.hasGoneDown = true;
       }
     });
+
+    if (cardsFromInvalidRuns.size) {
+      draft.turn.playedThisTurn = draft.turn.playedThisTurn.filter((card) => !cardsFromInvalidRuns.has(card.id));
+    }
+    if (repairedRuns) {
+      draft.lastAction = "Invalid runs were returned to their players. Melds must contain cards of the same rank.";
+    }
   });
 }
 
@@ -263,14 +295,12 @@ export function createMeld(state: GameState, playerId: string, cardIds: string[]
       draft.lastAction = (verdict as { reason?: string }).reason ?? "Invalid meld.";
       return;
     }
-    const type = detectMeldType(cards)!;
     const firstNatural = cards.find((card) => !isWild(card))!;
     const meld: Meld = {
       id: crypto.randomUUID(),
-      type,
+      type: "set",
       cards,
-      rank: type === "set" ? firstNatural.rank : undefined,
-      suit: type === "run" && firstNatural.suit !== "joker" ? firstNatural.suit : undefined,
+      rank: firstNatural.rank,
     };
     player.melds.push(meld);
     draft.turn.playedThisTurn.push(...cards);
@@ -284,7 +314,7 @@ export function createMeld(state: GameState, playerId: string, cardIds: string[]
       draft.lastAction = `${player.name} went out`;
       finishGame(draft, player.id);
     } else {
-      draft.lastAction = `${player.name} created a ${type} basket`;
+      draft.lastAction = `${player.name} created a basket of ${firstNatural.rank}s`;
     }
   });
 }
@@ -450,17 +480,6 @@ function rankBucket(cards: Card[]) {
   return [...buckets.values()].sort((a, b) => b.length - a.length);
 }
 
-function suitRuns(cards: Card[]) {
-  const natural = cards.filter((card) => !isBadThree(card) && !isWild(card) && card.suit !== "joker");
-  const bySuit = new Map<string, Card[]>();
-  for (const card of natural) {
-    const bucket = bySuit.get(card.suit) ?? [];
-    bucket.push(card);
-    bySuit.set(card.suit, bucket);
-  }
-  return [...bySuit.values()].filter((cardsInSuit) => cardsInSuit.length >= 3);
-}
-
 function chooseDiscardForDifficulty(cards: Card[], difficulty: Difficulty) {
   const sorted = [...cards].sort((a, b) => cardPoints(a) - cardPoints(b));
   if (difficulty === "easy") {
@@ -478,13 +497,7 @@ function opponentMeldSets(state: GameState, playerId: string) {
     .flatMap((p) => p.melds.filter((m) => m.type === "set" && m.rank).map((m) => m.rank!));
 }
 
-function opponentMeldRuns(state: GameState, playerId: string) {
-  return state.players
-    .filter((p) => p.id !== playerId)
-    .flatMap((p) => p.melds.filter((m) => m.type === "run" && m.suit).map((m) => m.suit!));
-}
-
-function chooseDiscardAware(cards: Card[], difficulty: Difficulty, opponentRanks: string[], opponentSuits: string[]) {
+function chooseDiscardAware(cards: Card[], difficulty: Difficulty, opponentRanks: string[]) {
   // Always discard bad threes first, starting with the highest penalty (red threes)
   const badThrees = cards.filter(isBadThree).sort((a, b) => cardPoints(b) - cardPoints(a));
   if (badThrees.length > 0) {
@@ -494,7 +507,7 @@ function chooseDiscardAware(cards: Card[], difficulty: Difficulty, opponentRanks
   const sorted = [...cards].sort((a, b) => cardPoints(a) - cardPoints(b));
   // Hard: prefer discarding cards that don't match opponent melds
   const safeDiscard = sorted.find(
-    (card) => !isWild(card) && !isBadThree(card) && !opponentRanks.includes(card.rank) && !opponentSuits.includes(card.suit),
+    (card) => !isWild(card) && !isBadThree(card) && !opponentRanks.includes(card.rank),
   );
   return safeDiscard ?? chooseDiscardForDifficulty(cards, difficulty);
 }
@@ -574,42 +587,6 @@ function findPossibleSetsForHardMode(active: Card[], existingMelds: Meld[]) {
   return { possibleMelds, remainingWilds: wilds };
 }
 
-function findPossibleRunsForHardMode(active: Card[], existingMelds: Meld[]) {
-  const possibleMelds: Card[][] = [];
-  const usedCardIds = new Set<string>();
-  const availableWilds = active.filter(isWild);
-
-  for (const suit of SUITS) {
-    const naturals = active
-      .filter((card) => card.suit === suit && isNaturalForMeld(card) && !usedCardIds.has(card.id))
-      .sort((a, b) => RANKS.indexOf(a.rank as (typeof RANKS)[number]) - RANKS.indexOf(b.rank as (typeof RANKS)[number]));
-    let best: Card[] | null = null;
-
-    for (let start = 0; start < naturals.length; start += 1) {
-      for (let end = start + 1; end < naturals.length; end += 1) {
-        const windowNaturals = naturals.slice(start, end + 1);
-        const firstPosition = RANKS.indexOf(windowNaturals[0].rank as (typeof RANKS)[number]);
-        const lastPosition = RANKS.indexOf(windowNaturals[windowNaturals.length - 1].rank as (typeof RANKS)[number]);
-        const missingCount = lastPosition - firstPosition + 1 - windowNaturals.length;
-        const freeWilds = availableWilds.filter((card) => !usedCardIds.has(card.id));
-        if (missingCount > freeWilds.length) continue;
-        const candidate = [...windowNaturals, ...freeWilds.slice(0, missingCount)];
-        if (candidate.length < 3 || !canCreateMeld(candidate, existingMelds).ok) continue;
-        if (!best || candidate.length > best.length || candidate.reduce((sum, card) => sum + cardPoints(card), 0) > best.reduce((sum, card) => sum + cardPoints(card), 0)) {
-          best = candidate;
-        }
-      }
-    }
-
-    if (best) {
-      possibleMelds.push(best);
-      best.forEach((card) => usedCardIds.add(card.id));
-    }
-  }
-
-  return possibleMelds;
-}
-
 export function runCpuTurn(state: GameState) {
   const player = state.players[state.currentPlayer];
   if (!player.isCpu || state.winnerId) {
@@ -654,10 +631,7 @@ export function runCpuTurn(state: GameState) {
   if (difficulty === "hard") {
     // Hard Difficulty Melding Logic
     const { possibleMelds: possibleSets } = findPossibleSetsForHardMode(active, draft.players[draft.currentPlayer].melds);
-    const setCardIds = new Set(possibleSets.flat().map((card) => card.id));
-    const cardsAfterSets = active.filter((card) => !setCardIds.has(card.id));
-    const possibleRuns = findPossibleRunsForHardMode(cardsAfterSets, draft.players[draft.currentPlayer].melds);
-    const possibleMelds = [...possibleSets, ...possibleRuns];
+    const possibleMelds = possibleSets;
     const newMeldsPoints = possibleMelds.reduce((sum, meld) => sum + meld.reduce((s, c) => s + cardPoints(c), 0), 0);
 
     if (alreadyDown || newMeldsPoints >= 90) {
@@ -691,10 +665,7 @@ export function runCpuTurn(state: GameState) {
     // Easy and Medium Melding Logic
     const availableMeldPoints = rankBucket(active)
       .filter((b) => b.length >= 3 && canCreateMeld(b.slice(0, 3), draft.players[draft.currentPlayer].melds).ok)
-      .reduce((sum, b) => sum + b.slice(0, 3).reduce((s, c) => s + cardPoints(c), 0), 0) +
-      suitRuns(active)
-        .filter((r) => r.length >= 3 && canCreateMeld(r.slice(0, 3), draft.players[draft.currentPlayer].melds).ok)
-        .reduce((sum, r) => sum + r.slice(0, 3).reduce((s, c) => s + cardPoints(c), 0), 0);
+      .reduce((sum, b) => sum + b.slice(0, 3).reduce((s, c) => s + cardPoints(c), 0), 0);
 
     if (alreadyDown || availableMeldPoints >= 90) {
       let playedSomething = true;
@@ -706,13 +677,6 @@ export function runCpuTurn(state: GameState) {
         if (candidateSet) {
           draft = createMeld(draft, player.id, candidateSet.slice(0, Math.min(candidateSet.length, 4)).map((card) => card.id));
           playedSomething = true;
-        } else {
-          const runs = suitRuns(currentActive);
-          const run = runs.find((bucket) => canCreateMeld(bucket.slice(0, 3), draft.players[draft.currentPlayer].melds).ok);
-          if (run) {
-            draft = createMeld(draft, player.id, run.slice(0, 3).map((card) => card.id));
-            playedSomething = true;
-          }
         }
       }
     }
@@ -746,7 +710,7 @@ export function runCpuTurn(state: GameState) {
   const latestCards = activeCards(draft.players[draft.currentPlayer]);
   const discard =
     difficulty === "hard"
-      ? chooseDiscardAware(latestCards, difficulty, opponentMeldSets(draft, player.id), opponentMeldRuns(draft, player.id))
+      ? chooseDiscardAware(latestCards, difficulty, opponentMeldSets(draft, player.id))
       : chooseDiscardForDifficulty(latestCards, difficulty);
   return discard ? discardCard(draft, player.id, discard.id) : draft;
 }

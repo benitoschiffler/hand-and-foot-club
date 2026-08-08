@@ -82,7 +82,7 @@ Recommended long-term setup:
 
 - Two facedown piles of 7 cards are dealt to each player; each player chooses which becomes the visible hand and which remains the foot.
 - Draw exactly two cards per turn unless you pick up the discard pile with one card, in which case you also draw one from stock.
-- Melds can be sets or same-suit runs from `4` through `A`.
+- Melds contain cards of the same rank; runs are not allowed.
 - `2`s and Jokers are wild and worth `20`.
 - `3`s are always bad, cannot be melded, and should be discarded.
 - New melds need at least `15` points each.

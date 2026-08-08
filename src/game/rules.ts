@@ -1,7 +1,6 @@
 import type { Card, Meld, Rank, Suit } from "../types";
 
 export const RANK_ORDER: Rank[] = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A", "JOKER"];
-export const RUN_RANKS: Rank[] = ["4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"];
 export const SUIT_SYMBOL: Record<Suit, string> = {
   clubs: "♣",
   diamonds: "♦",
@@ -62,33 +61,7 @@ function naturalRanks(cards: Card[]) {
   return cards.filter(isNaturalForMeld).map((card) => card.rank);
 }
 
-function consecutiveRanks(cards: Card[]) {
-  const naturals = cards.filter(isNaturalForMeld);
-  if (!naturals.length) {
-    return false;
-  }
-  const suit = naturals[0].suit;
-  if (naturals.some((card) => card.suit !== suit || !RUN_RANKS.includes(card.rank))) {
-    return false;
-  }
-
-  const positions = naturals
-    .map((card) => RUN_RANKS.indexOf(card.rank))
-    .sort((a, b) => a - b);
-
-  let gaps = 0;
-  for (let index = 1; index < positions.length; index += 1) {
-    const diff = positions[index] - positions[index - 1];
-    if (diff === 0) {
-      return false;
-    }
-    gaps += diff - 1;
-  }
-
-  return gaps <= cards.filter(isWild).length;
-}
-
-export function detectMeldType(cards: Card[]): "set" | "run" | null {
+export function detectMeldType(cards: Card[]): "set" | null {
   if (cards.length < 3 || cards.some(isBadThree)) {
     return null;
   }
@@ -100,9 +73,6 @@ export function detectMeldType(cards: Card[]): "set" | "run" | null {
   const allSameRank = naturals.every((card) => card.rank === naturals[0].rank);
   if (allSameRank) {
     return "set";
-  }
-  if (consecutiveRanks(cards)) {
-    return "run";
   }
   return null;
 }
@@ -121,34 +91,23 @@ export function canCreateMeld(cards: Card[], existingMelds?: Meld[]) {
   }
   
   if (existingMelds && existingMelds.length > 0) {
-     if (type === "set") {
-       const firstNatural = cards.find(c => !isWild(c));
-       const isClean = !cards.some(isWild);
-       if (firstNatural && existingMelds.some(m => m.type === "set" && m.rank === firstNatural.rank && (!m.cards.some(isWild) === isClean))) {
-         return { ok: false, reason: `You already have a ${isClean ? "clean" : "dirty"} basket of ${firstNatural.rank}s. Add to it instead.` };
-       }
-     } else if (type === "run") {
-       const firstNatural = cards.find(c => !isWild(c));
-       const isClean = !cards.some(isWild);
-       if (firstNatural && existingMelds.some(m => m.type === "run" && m.suit === firstNatural.suit && (!m.cards.some(isWild) === isClean))) {
-         return { ok: false, reason: `You already have a ${isClean ? "clean" : "dirty"} run of ${firstNatural.suit}. Add to it instead.` };
-       }
-     }
+    const firstNatural = cards.find(c => !isWild(c));
+    const isClean = !cards.some(isWild);
+    if (firstNatural && existingMelds.some(m => m.rank === firstNatural.rank && (!m.cards.some(isWild) === isClean))) {
+      return { ok: false, reason: `You already have a ${isClean ? "clean" : "dirty"} basket of ${firstNatural.rank}s. Add to it instead.` };
+    }
   }
 
   return { ok: true, type, points };
 }
 
 export function canAddToMeld(meld: Meld, cards: Card[]) {
-  if (!cards.length || cards.some(isBadThree)) {
+  if ((meld as { type?: string }).type !== "set" || !cards.length || cards.some(isBadThree)) {
     return false;
   }
   const merged = [...meld.cards, ...cards];
-  if (meld.type === "set") {
-    const naturals = naturalRanks(merged);
-    return naturals.every((rank) => rank === naturals[0]);
-  }
-  return consecutiveRanks(merged);
+  const naturals = naturalRanks(merged);
+  return naturals.length >= 2 && naturals.every((rank) => rank === naturals[0]);
 }
 
 export function findUniqueAddTarget(melds: Meld[], cards: Card[]) {

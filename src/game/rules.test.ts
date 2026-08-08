@@ -18,9 +18,21 @@ describe("house rules", () => {
     expect(canCreateMeld([...set.slice(0, 2), card("bad", "3")]).ok).toBe(false);
   });
 
-  it("uses wild cards to fill a suited run", () => {
-    const run = [card("four", "4", "hearts"), card("six", "6", "hearts"), card("wild", "2", "diamonds")];
-    expect(detectMeldType(run)).toBe("run");
+  it("rejects runs, including the reported 2-K-Q-J-10-8 group", () => {
+    const reportedRun = [
+      card("wild", "2", "diamonds"),
+      card("king", "K"),
+      card("queen", "Q"),
+      card("jack", "J"),
+      card("ten", "10"),
+      card("eight", "8"),
+    ];
+
+    expect(detectMeldType(reportedRun)).toBeNull();
+    expect(canCreateMeld(reportedRun)).toMatchObject({
+      ok: false,
+      reason: expect.stringContaining("same rank"),
+    });
   });
 
   it("allows adding only matching cards to a set", () => {
