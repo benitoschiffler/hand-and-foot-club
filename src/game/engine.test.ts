@@ -168,3 +168,82 @@ describe("game engine regressions", () => {
     expect(repaired.lastAction).toContain("same rank");
   });
 });
+
+import { createCpuGame, chooseStartingHand, drawFromStock, discardCard } from "./engine";
+
+function expertState(hand: Card[], down = true): GameState {
+  const state = chooseStartingHand(createCpuGame("expert"), "P1", 0);
+  state.currentPlayer = 1;
+  Object.assign(state.players[1], { hand, foot: [card("foot", "8")], hasGoneDown: down });
+  state.stock = [card("draw1", "4"), card("draw2", "6")];
+  return state;
+}
+
+describe("CPU tables and Expert strategy", () => {
+  it.each([1, 2, 3])("deals a complete, unique scaled deck for %i opponents and rotates back to the human", count => {
+    let state = chooseStartingHand(createCpuGame("expert", count), "P1", 0);
+    expect(state.deckCount).toBe(count + 2);
+    expect(state.players).toHaveLength(count + 1);
+    expect(state.players.slice(1).every(p => p.difficulty === "expert" && p.chosenHand)).toBe(true);
+    const all = [...state.stock, ...state.players.flatMap(p => [...p.hand, ...p.foot])];
+    expect(all).toHaveLength((count + 2) * 54);
+    expect(new Set(all.map(c => c.id)).size).toBe(all.length);
+    state = drawFromStock(state);
+    state = discardCard(state, "P1", state.players[0].hand[0].id);
+    for (let i = 1; i <= count; i++) {
+      expect(state.currentPlayer).toBe(i);
+      state = runCpuTurn(state);
+    }
+    expect(state.currentPlayer).toBe(0);
+    expect(state.turn.drawn).toBe(false);
+  });
+
+  it("rejects CPU tables outside the 2–4 player limit", () => {
+    for (const count of [0, 4, 1.5, NaN]) expect(() => createCpuGame("expert", count)).toThrow();
+  });
+
+  it("cannot add cards to an opponent's basket", () => {
+    const state = expertState([card("mine", "K")]);
+    state.players[0].melds = [{ id: "theirs", type: "set", rank: "K", cards: [card("k1", "K"), card("k2", "K"), card("k3", "K")] }];
+    expect(addToMeld(state, "P2", "theirs", ["mine"])).toEqual(state);
+  });
+
+  it("opens with 90 points by using extra wilds that Hard leaves unused", () => {
+    const state = expertState([card("a1", "A"), card("a2", "A"), card("w1", "2"), card("w2", "2"), card("w3", "JOKER")], false);
+    const hard = structuredClone(state); hard.players[1].difficulty = "hard";
+    expect(runCpuTurn(hard).players[1].hasGoneDown).toBe(false);
+    const next = runCpuTurn(state);
+    expect(next.players[1].hasGoneDown).toBe(true);
+    expect(next.players[1].melds[0].cards).toHaveLength(5);
+  });
+
+  it("preserves a useful pair instead of discarding the lowest card", () => {
+    const state = expertState([card("four1", "4"), card("four2", "4"), card("king", "K")]);
+    state.stock = [card("eight", "8"), card("nine", "9")];
+    const next = runCpuTurn(state);
+    expect(next.discard[0].rank).toBe("K");
+    expect(next.players[1].hand.filter(c => c.rank === "4")).toHaveLength(2);
+  });
+
+  it("takes top plus stock instead of collecting a pile of penalty threes", () => {
+    const state = expertState([card("nine", "9")]);
+    state.players[1].melds = [{ id: "kings", type: "set", rank: "K", cards: [card("k1", "K"), card("k2", "K"), card("k3", "K")] }];
+    state.discard = [card("top", "K"), card("bad1", "3", "hearts"), card("bad2", "3", "diamonds")];
+    const next = runCpuTurn(state);
+    expect(next.actionLog?.some(a => a.includes("1 from discard"))).toBe(true);
+    expect(next.players[1].melds[0].cards.some(c => c.id === "top")).toBe(true);
+    expect(next.discard.some(c => c.id === "bad1")).toBe(true);
+  });
+
+  it("keeps a final discard and scores all opponents when going out", () => {
+    const state = expertState([card("x", "4")]);
+    Object.assign(state.players[1], { hand: [], foot: [card("k4", "K")], footRevealed: true });
+    state.players[1].melds = [{ id: "kings", type: "set", rank: "K", cards: [card("k1", "K"), card("k2", "K"), card("k3", "K")] }];
+    state.stock = [card("k5", "K"), card("k6", "K")];
+    const next = runCpuTurn(state);
+    expect(next.winnerId).toBe("P2");
+    expect(next.discard[0].rank).toBe("K");
+    expect(next.players[0].score).toBeGreaterThan(0);
+    expect(next.players[1].score).toBe(0);
+  });
+});

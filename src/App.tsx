@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   addToMeld,
   chooseStartingHand,
-  createGame,
+  createCpuGame,
   createMeld,
   discardCard,
   drawFromStock,
@@ -90,7 +90,7 @@ function DroppableDiscard({ children }: { children: React.ReactNode }) {
 }
 
 function MeldStack({ meld, selectable, selected, onSelect }: { meld: Meld; selectable?: boolean; selected?: boolean; onSelect?: () => void }) {
-  const { isOver, setNodeRef } = useDroppable({ id: `meld-${meld.id}` });
+  const { isOver, setNodeRef } = useDroppable({ id: `meld-${meld.id}`, disabled: !selectable });
   const sortedCards = [...meld.cards].sort((a, b) => {
     const isAWild = a.rank === "2" || a.rank === "JOKER";
     const isBWild = b.rank === "2" || b.rank === "JOKER";
@@ -102,10 +102,10 @@ function MeldStack({ meld, selectable, selected, onSelect }: { meld: Meld; selec
   const body = (
     <>
       <div className="meld-header">
-        <span>Meld</span>
+        <span>{meld.rank}s · {meld.cards.some(c => c.rank === "2" || c.rank === "JOKER") ? "Dirty" : "Clean"}</span>
         <span>{meld.cards.length} cards</span>
       </div>
-      <div className="card-fan" style={{ width: `${Math.max(120, (sortedCards.length - 1) * 26 + 40)}px` }}>
+      <div className="card-fan" style={{ width: `${Math.max(120, (sortedCards.length - 1) * 26 + 80)}px` }}>
         {sortedCards.map((card, index) => (
           <div
             key={card.id}
@@ -145,7 +145,8 @@ function App() {
   const [viewerPlayerId, setViewerPlayerId] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [selectedMeld, setSelectedMeld] = useState<string>("");
-  const [deckCount, setDeckCount] = useState(3);
+  const [opponentCount, setOpponentCount] = useState(3);
+  const [tableDifficulty, setTableDifficulty] = useState<Difficulty>("hard");
   const [message, setMessage] = useState("Welcome! Tap a button below to get started.");
   const [history, setHistory] = useState<Array<{ id: string; created_at: string; scores: Array<{ id: string; name: string; score: number }> }>>([]);
   const [handOrder, setHandOrder] = useState<string[]>([]);
@@ -270,22 +271,19 @@ function App() {
     [handOrder, visibleCards],
   );
 
-  function startCpuGame(cpuDifficulty: Difficulty) {
+  function startCpuGame(cpuDifficulty: Difficulty, count = 1) {
     setSelected([]);
     setSelectedMeld("");
-    const game = createGame("cpu", deckCount, [
-      { name: "You" },
-      { name: "Computer", difficulty: cpuDifficulty },
-    ]);
+    const game = createCpuGame(cpuDifficulty, count);
     setState(game);
     setViewerPlayerId(game.players[0].id);
     setShowNewGameChoices(false);
-    setMessage(`Started game against the Computer.`);
+    setMessage(`Started a ${cpuDifficulty} game against ${count} CPU ${count === 1 ? "opponent" : "opponents"}.`);
   }
 
-  function startNewCpuGame(cpuDifficulty: Difficulty) {
+  function startNewCpuGame(cpuDifficulty: Difficulty, count = 1) {
     if (savedSession && !window.confirm("Start a new game? Your saved game will be replaced.")) return;
-    startCpuGame(cpuDifficulty);
+    startCpuGame(cpuDifficulty, count);
   }
 
   async function continueSavedGame() {
@@ -506,7 +504,7 @@ ${JSON.stringify(state, null, 2)}`;
   if (state && currentPlayer && viewer) {
     const isWinner = state.winnerId === viewer.id;
     return (
-      <div className="table-shell">
+      <div className={`table-shell ${state.players.length > 2 ? "multi-table" : ""}`}>
         {isWinner && <VictoryCelebration />}
         <header className="table-header">
           <button className="header-icon-button" onClick={leaveGame} aria-label="Return to home">‹</button>
@@ -537,6 +535,10 @@ ${JSON.stringify(state, null, 2)}`;
           <span className="sync-chip">{syncStatus || (state.mode === "cpu" ? "Saved on this phone" : "Connecting…")}</span>
         </div>
 
+        {state.players.length > 2 && <nav className="table-navigation" aria-label="Table views">
+          <a href="#your-cards">Your cards</a><a href="#opponents">Opponents’ baskets</a>
+          <span>{state.deckCount} decks · {opponents[0]?.difficulty}</span>
+        </nav>}
         {reportStatus && <div className="report-status" role="status">{reportStatus}</div>}
 
         {state.lastAction && (
@@ -545,20 +547,39 @@ ${JSON.stringify(state, null, 2)}`;
           </div>
         )}
 
+        {state.winnerId && <section className="game-result" role="status">
+          <strong>{state.winnerId === "draw" ? "The deck ran out" : `${state.players.find(p => p.id === state.winnerId)?.name} won!`}</strong>
+          <span>Penalty points remaining · lower is better</span>
+          {state.players.map(player => <span key={player.id}>{player.name}: <b>{player.score}</b></span>)}
+          <button className="btn" onClick={leaveGame}>Back to game choices</button>
+        </section>}
+
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <main className="table-felt">
           <div className="table-left-column">
-            <section className="opponent-area">
+            <section id="opponents" className="opponent-area" aria-label="Opponents">
             {opponents.map((player) => (
               <div key={player.id} className={`player-card ${player.id === currentPlayer.id ? "active" : ""}`}>
-                <div className="player-name">{player.name}</div>
-                <div className="player-stats">Hand: {player.hand.length} | Foot: {player.foot.length}</div>
-                <div className="player-stats">{player.hasGoneDown ? "Has gone down" : "Not down yet"}</div>
-                <div className="player-stats">Score: {player.score}</div>
-                
-                <div className="melds-area">
-                  {player.melds.map((meld) => <MeldStack key={meld.id} meld={meld} />)}
+                <div className="opponent-heading">
+                  <strong>{player.name}</strong>
+                  <span>{!state.winnerId && player.id === currentPlayer.id ? "Playing…" : player.difficulty}</span>
                 </div>
+                <div className="player-stats">{player.footRevealed ? `Foot: ${player.foot.length}` : `Hand: ${player.hand.length} · Foot: ${player.foot.length}`} · {player.hasGoneDown ? "Down" : "Needs 90"}</div>
+                <div className="basket-summary" aria-label={`${player.name} baskets`}>
+                  {player.melds.length ? player.melds.map(meld => (
+                    <span key={meld.id} className="basket-chip">
+                      <strong>{meld.rank}s</strong> ×{meld.cards.length}
+                      <small>{meld.cards.some(c => c.rank === "2" || c.rank === "JOKER") ? "Dirty" : "Clean"}</small>
+                    </span>
+                  )) : <span className="no-baskets">No baskets yet</span>}
+                </div>
+                {player.melds.length > 0 && <details className="opponent-details">
+                  <summary>See cards in baskets</summary>
+                  <div className="melds-area">
+                    {player.melds.map((meld) => <MeldStack key={meld.id} meld={meld} />)}
+                  </div>
+                </details>}
+
               </div>
             ))}
           </section>
@@ -648,11 +669,11 @@ ${JSON.stringify(state, null, 2)}`;
               </section>
             )}
 
-            <section className="hand-area">
+            <section id="your-cards" className="hand-area">
               <div className="hand-header">
                 <div>
                   <h3>{activeHandLabel} ({visibleCards.length} cards)</h3>
-                  {viewer.foot.length > 0 && <p>Foot: {viewer.foot.length} cards waiting</p>}
+                  {!viewer.footRevealed && viewer.foot.length > 0 && <p>Foot: {viewer.foot.length} cards waiting</p>}
                 </div>
                 <span className={`selection-count ${selected.length ? "has-selection" : ""}`} aria-live="polite">
                   {selected.length ? `${selected.length} selected` : "Tap cards to select"}
@@ -766,6 +787,7 @@ ${JSON.stringify(state, null, 2)}`;
                   <button className="btn" onClick={() => startNewCpuGame("easy")}>Easy</button>
                   <button className="btn btn-outline" onClick={() => startNewCpuGame("medium")}>Medium</button>
                   <button className="btn btn-hard" onClick={() => startNewCpuGame("hard")}>Hard</button>
+                  <button className="btn btn-expert" onClick={() => startNewCpuGame("expert")}>Expert</button>
                 </div>
               </div>
             )}
@@ -782,9 +804,29 @@ ${JSON.stringify(state, null, 2)}`;
             <button className="btn" onClick={() => startNewCpuGame("easy")}>Easy</button>
             <button className="btn btn-outline" onClick={() => startNewCpuGame("medium")}>Medium</button>
             <button className="btn btn-hard" onClick={() => startNewCpuGame("hard")}>Hard</button>
+                  <button className="btn btn-expert" onClick={() => startNewCpuGame("expert")}>Expert</button>
           </div>
         </div>
+        <div className="panel cpu-table-setup">
+          <span className="panel-icon" aria-hidden="true">♣</span>
+          <h2>CPU Table</h2>
+          <p>Your own seat against 1–3 computer opponents. Everyone plays for themselves, using only their own baskets.</p>
+          <label htmlFor="opponent-count">Computer opponents</label>
+          <select id="opponent-count" value={opponentCount} onChange={event => setOpponentCount(Number(event.target.value))}>
+            <option value={1}>1 opponent · 2 players</option>
+            <option value={2}>2 opponents · 3 players</option>
+            <option value={3}>3 opponents · 4 players</option>
+          </select>
+          <label htmlFor="table-difficulty">Difficulty for every opponent</label>
+          <select id="table-difficulty" value={tableDifficulty} onChange={event => setTableDifficulty(event.target.value as Difficulty)}>
+            <option value="easy">Easy</option><option value="medium">Medium</option>
+            <option value="hard">Hard</option><option value="expert">Expert</option>
+          </select>
+          <p className="table-setup-note">{opponentCount + 2} decks · Same rules · Saved on this device</p>
+          <button className="btn" onClick={() => startNewCpuGame(tableDifficulty, opponentCount)}>Start CPU Table</button>
+        </div>
       </div>
+      <p className="expert-description">Expert plans melds and wild cards together, protects useful pairs, and watches opponents’ baskets.</p>
       <GameHistory entries={history} />
       <footer className="home-footer">Hand &amp; Foot Club · {APP_VERSION}</footer>
     </div>

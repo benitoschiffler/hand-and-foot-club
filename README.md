@@ -3,12 +3,30 @@
 Browser game for your custom Hand and Foot ruleset, with:
 
 - Online room play through Supabase
-- Local play against CPU (`easy`, `medium`, `hard`)
+- Local play against CPU (`easy`, `medium`, `hard`, `expert`)
+- Separate CPU Table setup for 1–3 opponents (2–4 total players)
 - Email magic-link login
 - Recent score history
 - Installable mobile web app support
 - Automatic game recovery after refresh or reopening
 - One-tap problem reports that can be shared from a phone
+
+## CPU play
+
+The existing **Practice with the Computer** buttons still start a two-player game.
+**Expert** adds bounded planning of melds and wild allocations, pair-aware discards,
+and selective discard-pile pickups. It uses its active cards and public baskets;
+it does not inspect the stock or unrevealed feet to plan moves.
+
+**CPU Table** lets you choose 1, 2, or 3 opponents at one shared difficulty.
+Two players use 3 decks, three use 4, and four use 5. Each player has separate
+baskets; there are no partnerships or laying off on another player's baskets.
+Opening points, dealing, turn order, and scoring rules stay the same.
+
+Opponent panels show hand/foot counts and clean/dirty basket summaries. Expand
+**See cards in baskets** to inspect the public cards. On smaller screens, use
+**Your cards** and **Opponents’ baskets** to move around the table. CPU tables use
+the same device save/resume flow as practice games.
 
 ## Run
 

@@ -104,6 +104,19 @@ export function createGame(mode: "cpu" | "online", deckCount: number, players: A
   };
 }
 
+/** Local CPU tables always use one more deck than players. */
+export function createCpuGame(difficulty: Difficulty, opponentCount = 1) {
+  if (!Number.isInteger(opponentCount) || opponentCount < 1 || opponentCount > 3) {
+    throw new Error("Choose 1 to 3 CPU opponents.");
+  }
+  return createGame("cpu", opponentCount + 2, [
+    { name: "You" },
+    ...Array.from({ length: opponentCount }, (_, index) => ({
+      name: opponentCount === 1 ? "Computer" : `CPU ${index + 1}`, difficulty,
+    })),
+  ]);
+}
+
 export function repairOpeningStatus(state: GameState) {
   return mutate(state, (draft) => {
     const playedThisTurn = new Set(draft.turn.playedThisTurn.map((card) => card.id));
@@ -587,6 +600,100 @@ function findPossibleSetsForHardMode(active: Card[], existingMelds: Meld[]) {
   return { possibleMelds, remainingWilds: wilds };
 }
 
+type ExpertMove = { cards: Card[]; meldId?: string };
+
+// Bounded planning over the CPU's active cards and public baskets only.
+// Try different wild allocations; a wild spent adding to a basket may be
+// more valuable opening a pair. Never inspect the stock or a hidden foot.
+function expertPlan(player: PlayerState, cards = activeCards(player)) {
+  let best: { moves: ExpertMove[]; value: number } = { moves: [], value: -Infinity };
+  for (const order of ["points", "size", "reverse"] as const) {
+    for (const reserveWilds of [true, false]) {
+      let remaining = [...cards];
+      const melds = structuredClone(player.melds);
+      const moves: ExpertMove[] = [];
+      let points = 0;
+      const play = (chosen: Card[], meld?: Meld) => {
+        if (player.footRevealed && chosen.length === remaining.length) chosen = chosen.slice(0, -1);
+        if (!chosen.length || (meld ? !canAddToMeld(meld, chosen) : !canCreateMeld(chosen, melds).ok)) return;
+        moves.push({ cards: chosen, meldId: meld?.id });
+        points += chosen.reduce((sum, c) => sum + cardPoints(c), 0);
+        remaining = remaining.filter(c => !chosen.some(p => p.id === c.id));
+        if (meld) meld.cards.push(...chosen);
+        else melds.push({ id: `plan-${moves.length}`, type: "set", rank: chosen.find(isNaturalForMeld)!.rank, cards: [...chosen] });
+      };
+      const groups = rankBucket(cards.filter(isNaturalForMeld)).sort((a, b) =>
+        order === "points" ? cardPoints(b[0]) * b.length - cardPoints(a[0]) * a.length :
+        order === "size" ? b.length - a.length : a.length - b.length);
+      for (const group of groups) {
+        const existing = melds.find(m => canAddToMeld(m, group));
+        if (existing) { play(group, existing); continue; }
+        if (group.length < 2) continue;
+        const wilds = remaining.filter(isWild);
+        const needed = Math.max(0, 3 - group.length);
+        const used = reserveWilds ? needed : wilds.length;
+        if (wilds.length >= needed) play([...group, ...wilds.slice(0, used)]);
+      }
+      const target = melds.find(m => m.cards.some(isWild)) ?? melds[0];
+      if (target) play(remaining.filter(isWild), target);
+      if (!player.hasGoneDown && points < 90) continue;
+      const value = (cards.length - remaining.length) * 35 + (player.hasGoneDown ? 0 : 100)
+        - remaining.reduce((sum, c) => sum + cardPoints(c), 0) * 0.15;
+      if (value > best.value) best = { moves, value };
+    }
+  }
+  return best.value === -Infinity ? { moves: [], value: -cards.reduce((sum, c) => sum + cardPoints(c), 0) * 0.15 } : best;
+}
+
+function expertDraw(state: GameState, player: PlayerState) {
+  if (!state.discard.length) return drawFromStock(state);
+  const cards = activeCards(player);
+  const base = expertPlan(player).value;
+  const utility = (extra: Card[]) => expertPlan(player, [...cards, ...extra]).value - base - extra.length * 24;
+  const allValue = utility(state.discard);
+  const topValue = utility([state.discard[0]]);
+  if (allValue > 12 && (state.discard.length === 1 || allValue > topValue + 10)) return pickUpDiscard(state);
+  if (topValue > 8 && state.discard.length > 1 && state.stock.length >= 2) return drawSplit(state);
+  if (state.discard.length === 1 && topValue > 8) return pickUpDiscard(state);
+  return drawFromStock(state);
+}
+
+function expertDiscard(state: GameState, player: PlayerState) {
+  const cards = activeCards(player);
+  const next = state.players[(state.currentPlayer + 1) % state.players.length];
+  const cost = (card: Card) => {
+    if (isBadThree(card)) return -1000 - cardPoints(card);
+    const matches = cards.filter(c => c.rank === card.rank).length - 1;
+    const helpsNext = next.id !== player.id && next.melds.some(m => canAddToMeld(m, [card]));
+    return (isWild(card) ? 180 : 0) + matches * 45 + (helpsNext ? 65 : 0) - cardPoints(card) * 0.3;
+  };
+  return [...cards].sort((a, b) => cost(a) - cost(b))[0];
+}
+
+function runExpertTurn(state: GameState) {
+  const id = state.players[state.currentPlayer].id;
+  let draft = state.turn.drawn ? state : expertDraw(state, state.players[state.currentPlayer]);
+  if (draft.winnerId || !draft.turn.drawn) return draft;
+  // At most two plans: the hand, then the foot only after it is revealed.
+  for (let phase = 0; phase < 2; phase += 1) {
+    const player = draft.players[draft.currentPlayer];
+    const wasInFoot = player.footRevealed;
+    const plan = expertPlan(player);
+    for (const move of plan.moves) {
+      // Planned basket IDs are resolved against the actual newly created basket.
+      const target = move.meldId?.startsWith("plan-")
+        ? draft.players[draft.currentPlayer].melds.find(m => canAddToMeld(m, move.cards))?.id
+        : move.meldId;
+      draft = target ? addToMeld(draft, id, target, move.cards.map(c => c.id))
+        : createMeld(draft, id, move.cards.map(c => c.id));
+      if (draft.winnerId) return draft;
+    }
+    if (wasInFoot || !draft.players[draft.currentPlayer].footRevealed) break;
+  }
+  const discard = expertDiscard(draft, draft.players[draft.currentPlayer]);
+  return discard ? discardCard(draft, id, discard.id) : draft;
+}
+
 export function runCpuTurn(state: GameState) {
   const player = state.players[state.currentPlayer];
   if (!player.isCpu || state.winnerId) {
@@ -602,6 +709,7 @@ export function runCpuTurn(state: GameState) {
   }
 
   const difficulty = player.difficulty ?? "easy";
+  if (difficulty === "expert") return runExpertTurn(draft);
   const topDiscard = draft.discard[0];
   const currentMelds = draft.players[draft.currentPlayer].melds;
   const discardFitsExistingMeld = topDiscard && currentMelds.some((meld) => canAddToMeld(meld, [topDiscard]));

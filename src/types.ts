@@ -15,7 +15,7 @@ export type Rank =
   | "A"
   | "JOKER";
 
-export type Difficulty = "easy" | "medium" | "hard";
+export type Difficulty = "easy" | "medium" | "hard" | "expert";
 
 export interface Card {
   id: string;

@@ -1098,3 +1098,69 @@ input:focus-visible {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* CPU tables keep each opponent's public baskets visible at every screen size. */
+.cpu-table-setup label { display: block; font-weight: 750; margin: 14px 0 6px; }
+.cpu-table-setup select { width: 100%; min-height: 48px; padding: 10px; border: 1px solid #a7b8b0; border-radius: 10px; background: white; color: #193b31; font: inherit; }
+.btn-expert { background: #553377; color: white; }
+.expert-description { text-align: center; color: #53655c; }
+.opponent-heading { display: flex; justify-content: space-between; gap: 8px; color: #183c31; }
+.opponent-heading strong { font-size: 1.1rem; }
+.opponent-heading span { text-transform: capitalize; font-size: .85rem; }
+.basket-summary { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.basket-chip { display: inline-flex; align-items: baseline; gap: 4px; padding: 6px 8px; background: #edf3ef; border: 1px solid #c7d8cd; border-radius: 8px; color: #193b31; }
+.basket-chip small { font-size: .7rem; }
+.no-baskets { color: #66776e; font-size: .85rem; }
+.opponent-details { margin-top: 10px; color: #193b31; }
+.opponent-details summary { cursor: pointer; padding: 6px 0; font-size: .9rem; }
+.opponent-details .melds-area { overflow-x: auto; max-width: 100%; }
+.player-card { min-width: 0; }
+.game-result { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px; padding: 12px; color: #193b31; background: #e4f5e9; }
+.multi-table .table-left-column { flex-basis: 360px; }
+@media (max-width: 900px) {
+  .opponent-area { display: flex; gap: 8px; margin-bottom: 12px; overflow: visible; }
+  .opponent-area .player-card { padding: 10px; border-width: 2px; border-radius: 12px; }
+  .opponent-area .player-stats { color: #53655c; font-size: .8rem; margin-top: 4px; }
+  .multi-table .mobile-player-strip { display: none; }
+  .multi-table .table-felt { display: flex; flex-direction: column; }
+  .multi-table .table-left-column, .multi-table .table-right-column { flex: none; overflow: visible; }
+  .multi-table .table-right-column { order: 1; }
+  .multi-table .table-left-column { display: contents; }
+  .multi-table .center-area { order: 0; }
+  .multi-table .opponent-area { order: 2; }
+  .multi-table .table-right-column { margin-bottom: 14px; }
+  .multi-table .hand-area { margin-bottom: 0; }
+}
+@media (min-width: 601px) and (max-width: 900px) {
+  .multi-table .opponent-area { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
+}
+.table-navigation { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px; padding: 8px 12px; background: #193b31; color: #e2eee6; font-size: .85rem; }
+.table-navigation a { color: white; padding: 6px; text-underline-offset: 4px; }
+.table-navigation span { text-transform: capitalize; }
+@media (min-width: 769px) and (max-width: 900px) {
+  .multi-table .table-felt { overflow-y: auto; min-height: 0; }
+}
+.meld-header { gap: 12px; white-space: nowrap; font-size: .95rem; }
+.card-fan { height: 112px; }
+.hand-cards-dnd-wrapper { order: 3; }
+.multi-table .hand-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(82px, 1fr)); gap: 10px; padding-inline: 0; }
+.multi-table .hand-cards > div, .multi-table .hand-cards > div:last-child { width: 100%; margin: 0; }
+.multi-table .hand-cards .playing-card { width: 100%; }
+@media (min-width: 769px) {
+  .multi-table .hand-cards { grid-template-columns: repeat(auto-fill, minmax(82px, 1fr)); }
+  .multi-table .action-bar { order: 4; position: sticky; bottom: 0; background: white; padding-block: 10px; }
+}
+@media (max-width: 768px) {
+  .multi-table .hand-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 370px) {
+  .multi-table .hand-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (min-width: 901px) {
+  .multi-table .opponent-area { gap: 8px; }
+  .multi-table .player-card { padding: 10px; border-width: 2px; flex-shrink: 0; }
+  .multi-table .player-stats { font-size: .8rem; }
+  .multi-table .basket-summary { margin-top: 6px; }
+  .multi-table .opponent-details { margin-top: 4px; }
+  .multi-table .opponent-details summary { padding: 4px 0; font-size: .8rem; }
+}
